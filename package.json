@@ -1,0 +1,13 @@
+{
+  "name": "concurso-study-hub-root",
+  "version": "1.0.0",
+  "description": "Root workspace to run Concurso Study Hub frontend and backend concurrently",
+  "scripts": {
+    "start-backend": "node backend/server.js",
+    "start-frontend": "npm.cmd run dev --prefix frontend",
+    "dev": "npx.cmd concurrently \"npm.cmd run start-backend\" \"npm.cmd run start-frontend\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
