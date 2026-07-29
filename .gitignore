@@ -7,3 +7,4 @@ dist/
 build/
 backend/uploads/
 installer_output/
+chrome_temp/

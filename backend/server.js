@@ -16,7 +16,9 @@ const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (isLocal || allowedOrigins.has(origin)) return callback(null, true);
     return callback(new Error('Origin not allowed by CORS'));
   },
   methods: ['GET', 'POST'],

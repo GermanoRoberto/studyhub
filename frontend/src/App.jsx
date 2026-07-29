@@ -37,24 +37,28 @@ function App() {
     if (savedPlan) {
       try {
         const parsedPlan = JSON.parse(savedPlan);
-        // Se o plano salvo não tem cargoDetails mas temos o edital salvo, faz o upgrade dinâmico em tempo de carregamento
-        if (!parsedPlan.cargoDetails && savedEdital) {
-          try {
-            const parsedEditalObj = JSON.parse(savedEdital);
-            const cargoDetail = parsedEditalObj.cargos?.find(c => c.nome === parsedPlan.cargo) || {};
-            parsedPlan.cargoDetails = {
-              nome: parsedPlan.cargo,
-              vagas: cargoDetail.vagas || 'Ver no Edital',
-              salario: cargoDetail.salario || 'Ver no Edital',
-              requisitos: cargoDetail.requisitos || 'Não informados no resumo',
-              locais_prova: cargoDetail.locais_prova || 'Consultar locais no edital',
-              taf: cargoDetail.taf || 'Não exigido'
-            };
-            localStorage.setItem('concurso_study_plan', JSON.stringify(parsedPlan));
-          } catch (err) {}
+        if (parsedPlan && typeof parsedPlan === 'object') {
+          // Se o plano salvo não tem cargoDetails mas temos o edital salvo, faz o upgrade dinâmico em tempo de carregamento
+          if (!parsedPlan.cargoDetails && savedEdital) {
+            try {
+              const parsedEditalObj = JSON.parse(savedEdital);
+              if (parsedEditalObj && Array.isArray(parsedEditalObj.cargos)) {
+                const cargoDetail = parsedEditalObj.cargos.find(c => c.nome === parsedPlan.cargo) || {};
+                parsedPlan.cargoDetails = {
+                  nome: parsedPlan.cargo || 'Cargo',
+                  vagas: cargoDetail.vagas || 'Ver no Edital',
+                  salario: cargoDetail.salario || 'Ver no Edital',
+                  requisitos: cargoDetail.requisitos || 'Não informados no resumo',
+                  locais_prova: cargoDetail.locais_prova || 'Consultar locais no edital',
+                  taf: cargoDetail.taf || 'Não exigido'
+                };
+                localStorage.setItem('concurso_study_plan', JSON.stringify(parsedPlan));
+              }
+            } catch (err) {}
+          }
+          setStudyPlan(parsedPlan);
+          setView('dashboard'); // Se tem plano salvo, vai direto pro dashboard
         }
-        setStudyPlan(parsedPlan);
-        setView('dashboard'); // Se tem plano salvo, vai direto pro dashboard
       } catch (e) {
         console.error("Erro ao carregar plano de estudo do localStorage", e);
       }
