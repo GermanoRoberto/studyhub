@@ -92,17 +92,8 @@ async function main() {
   const frontendDestDist = path.join(distDir, 'frontend', 'dist');
   copyFolderRecursive(frontendSrcDist, frontendDestDist);
 
-  // 4. Ofuscar arquivos JS do Frontend
-  const assetsDir = path.join(frontendDestDist, 'assets');
-  if (fs.existsSync(assetsDir)) {
-    const files = fs.readdirSync(assetsDir);
-    for (const file of files) {
-      if (file.endsWith('.js')) {
-        const filePath = path.join(assetsDir, file);
-        obfuscateFile(filePath, filePath);
-      }
-    }
-  }
+  // 4. Arquivos JS do Frontend já são minificados e embaralhados nativamente pelo Vite,
+  // então não precisam de dupla ofuscação (o que quebraria o ciclo de renderização do React)
 
   // 5. Ofuscar arquivos JS do Backend
   const backendFilesToObfuscate = ['server.js', 'localDb.js', 'localSummariesDb.js'];
