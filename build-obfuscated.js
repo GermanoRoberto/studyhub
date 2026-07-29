@@ -171,7 +171,7 @@ scriptDir = fso.GetParentFolderName(Wscript.ScriptFullName)
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.CurrentDirectory = scriptDir
 ' Inicia o Node.js portátil local em segundo plano apontando para o backend ofuscado
-WshShell.Run """" & scriptDir & "\node.exe"" """ & scriptDir & "\backend\server.js""", 0, false
+WshShell.Run """" & scriptDir & "\\node.exe"" """ & scriptDir & "\\backend\\server.js""", 0, false
 ' Abre o navegador padrão na porta do servidor
 WshShell.Run "cmd.exe /c start http://127.0.0.1:5000", 1, false
 `;
