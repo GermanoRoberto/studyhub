@@ -6,3 +6,4 @@ frontend/dist/
 dist/
 build/
 backend/uploads/
+installer_output/

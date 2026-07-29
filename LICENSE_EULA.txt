@@ -1,0 +1,15 @@
+=== TERMO DE LICENÇA DE USO E ISENÇÃO DE RESPONSABILIDADE (EULA) ===
+
+Por favor, leia atentamente os termos abaixo antes de prosseguir com a instalação do Study Hub.
+
+1. CARÁTER DO SOFTWARE:
+O Study Hub é um programa de código aberto (open-source) de uso pessoal. Toda a sua estrutura e código foram disponibilizados de forma gratuita.
+
+2. ISENÇÃO DE QUALQUER RESPONSABILIDADE:
+ESTE SOFTWARE É FORNECIDO "COMO ESTÁ" (AS IS), SEM QUALQUER TIPO DE GARANTIA, EXPRESSA OU IMPLÍCITA, INCLUINDO, MAS NÃO SE LIMITANDO A, GARANTIAS DE COMERCIALIZAÇÃO OU ADEQUAÇÃO A UM PROPÓSITO ESPECÍFICO.
+EM NENHUM CASO O DESENVOLVEDOR DO PROGRAMA SERÁ RESPONSÁVEL POR QUALQUER RECLAMAÇÃO, DANOS MATERIAIS, MORAIS OU OUTROS DANOS DECORRENTES DO USO OU DA IMPOSSIBILIDADE DE USO DESTE SOFTWARE.
+
+3. USO DE RECURSOS LOCAIS (OLLAMA):
+Caso decida instalar a Inteligência Artificial local (Ollama) e baixar o modelo de estudos, você declara estar ciente de que o consumo de memória RAM, processamento de CPU/GPU e consumo de bateria do computador podem aumentar significativamente.
+
+Ao clicar em "Eu aceito o acordo", você declara ter lido, compreendido e concordado com todos os termos descritos acima.

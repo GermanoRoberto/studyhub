@@ -1445,6 +1445,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
 });
 
+const path = require('path');
+// Servir arquivos estáticos do frontend em produção
+const frontendDistPath = path.join(__dirname, '../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// Fallback para qualquer rota que não seja da API para carregar o index.html do React
+app.get('*all', (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
+
 // Inicia o Servidor
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError || error.message === 'Only PDF and TXT files are accepted.') {
