@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { saveCloudUserData } from '../services/api';
 
-export default function Header({ provider, setProvider, apiKey, setApiKey, activeConcurso, onReset, onLogoClick, currentView, setView, currentUser, onLogout }) {
+export default function Header({ provider, setProvider, apiKey, setApiKey, activeConcurso, onReset, onLogoClick, currentView, setView, currentUser, onLogout, isVercelAiConfigured }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tempProvider, setTempProvider] = useState(provider || 'offline');
+  const [tempProvider, setTempProvider] = useState(provider || 'gemini');
   const [tempKey, setTempKey] = useState(apiKey || '');
 
   const handleSaveSettings = () => {
@@ -23,18 +23,18 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
   };
 
   const getStatusText = () => {
+    if (isVercelAiConfigured) return 'Conectado (Gemini 2.5 via Vercel)';
+    if (provider === 'gemini') return 'Google Gemini 2.5 Flash';
     if (provider === 'offline') return 'Off-line (Banco de Dados Local)';
     if (provider === 'ollama') return 'Ollama (IA Local)';
     if (provider === 'openai') return 'OpenAI (GPT-4o-mini)';
     if (provider === 'groq') return 'Groq (Llama 3.3)';
-    if (apiKey || provider === 'gemini') return 'Conectado (Google Gemini 2.5)';
+    if (apiKey) return 'Conectado';
     return 'Modo Demonstrativo (Sem Chave)';
   };
 
   const getStatusClass = () => {
-    if (provider === 'offline') return 'online';
-    if (provider === 'ollama') return 'online';
-    if (apiKey || provider === 'openai' || provider === 'groq') return 'online';
+    if (isVercelAiConfigured || apiKey || provider === 'gemini' || provider === 'offline' || provider === 'ollama' || provider === 'openai' || provider === 'groq') return 'online';
     return 'demo';
   };
 
@@ -124,6 +124,21 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
             </div>
             
             <div className="modal-body">
+              {isVercelAiConfigured && (
+                <div style={{
+                  background: 'rgba(62, 207, 142, 0.1)',
+                  border: '1px solid rgba(62, 207, 142, 0.4)',
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  marginBottom: '16px',
+                  fontSize: '13px',
+                  color: '#ffffff',
+                  lineHeight: '1.5'
+                }}>
+                  <strong style={{ color: '#3ecf8e' }}>✨ Variável de IA Ativa no Vercel:</strong> Sua chave de API do <strong>Google Gemini 2.5 Flash</strong> foi detectada no ambiente de nuvem do Vercel. O Study Hub usará a IA da nuvem automaticamente sem você precisar digitar ou colar nenhuma chave no navegador!
+                </div>
+              )}
+
               <div className="input-group">
                 <label htmlFor="provider-select">Motor de Processamento (IA):</label>
                 <select 
@@ -132,9 +147,9 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
                   value={tempProvider}
                   onChange={(e) => setTempProvider(e.target.value)}
                 >
+                  <option value="gemini">Google Gemini API (Recomendado / Nuvem Vercel)</option>
                   <option value="offline">Off-line / Local (Sem chaves - Super Estável)</option>
-                  <option value="groq">Groq Cloud API (Llama 3 - Recomendado / Grátis)</option>
-                  <option value="gemini">Google Gemini API (Nuvem)</option>
+                  <option value="groq">Groq Cloud API (Llama 3 - Grátis)</option>
                   <option value="openai">OpenAI ChatGPT API (Nuvem)</option>
                   <option value="ollama">Ollama (Inteligência Artificial Local no PC)</option>
                 </select>
@@ -142,8 +157,7 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
 
               {tempProvider === 'offline' && (
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.4', margin: '4px 0 12px' }}>
-                  💡 <strong>Modo Recomendado:</strong> Usa o processador heurístico local e o banco de dados interno de questões do app. 
-                  Funciona 100% off-line com qualquer edital de forma super estável e sem erros de conexão.
+                  💡 <strong>Modo Off-line:</strong> Usa o processador heurístico local e o banco de dados interno de questões do app sem consultar IAs externas.
                 </p>
               )}
 
@@ -155,25 +169,37 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
 
               {tempProvider === 'ollama' && (
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.4', margin: '4px 0 12px' }}>
-                  🖥️ Requer que o <strong>Ollama</strong> esteja rodando em sua máquina na porta padrão <code style={{ color: 'var(--accent-cyan)' }}>11434</code> com o modelo <code style={{ color: 'var(--accent-cyan)' }}>qwen2.5:7b</code> ou similar instalado. Totalmente gratuito e local.
+                  🖥️ Requer que o <strong>Ollama</strong> esteja rodando em sua máquina na porta padrão <code style={{ color: 'var(--accent-cyan)' }}>11434</code> com o modelo <code style={{ color: 'var(--accent-cyan)' }}>qwen2.5:7b</code> ou similar instalado.
                 </p>
               )}
 
               {(tempProvider === 'gemini' || tempProvider === 'openai' || tempProvider === 'groq') && (
                 <div className="input-group">
                   <label htmlFor="api-key-input">
-                    {tempProvider === 'gemini' ? 'Chave de API do Gemini (Google AI Studio)' : 
-                     tempProvider === 'openai' ? 'Chave de API da OpenAI (ChatGPT)' : 
-                     'Chave de API da Groq (gsk_...)'}
+                    {tempProvider === 'gemini' ? (
+                      isVercelAiConfigured ? 
+                        'Chave de API do Gemini (Opcional - Já configurada no Vercel):' : 
+                        'Chave de API do Gemini (Google AI Studio):'
+                    ) : tempProvider === 'openai' ? 'Chave de API da OpenAI (ChatGPT):' : 
+                     'Chave de API da Groq (gsk_...):'}
                   </label>
                   <input 
                     id="api-key-input"
                     type="password" 
                     className="text-input" 
-                    placeholder={tempProvider === 'gemini' ? "AIzaSy..." : tempProvider === 'openai' ? "sk-..." : "gsk_..."} 
+                    placeholder={
+                      tempProvider === 'gemini' ? 
+                        (isVercelAiConfigured ? "✓ Chave já ativa via Vercel (deixe em branco)" : "AIzaSy...") : 
+                        tempProvider === 'openai' ? "sk-..." : "gsk_..."
+                    } 
                     value={tempKey} 
                     onChange={(e) => setTempKey(e.target.value)}
                   />
+                  {tempProvider === 'gemini' && isVercelAiConfigured && (
+                    <span style={{ fontSize: '11px', color: '#3ecf8e', marginTop: '4px', display: 'block' }}>
+                      ✓ Variável do Vercel detectada. Preencha apenas se quiser sobrescrever com outra chave.
+                    </span>
+                  )}
                 </div>
               )}
 

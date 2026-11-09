@@ -75,6 +75,21 @@ export const saveCloudUserData = async (category, data) => {
 };
 
 /**
+ * Consulta a configuração e status da IA e ambiente Vercel
+ */
+export const getSystemConfig = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.warn('Falha ao obter status do sistema:', e);
+  }
+  return { hasGeminiKey: false, provider: 'offline' };
+};
+
+/**
  * Helper para obter os headers com o provider, chave API e token de autenticação
  */
 const getHeaders = (provider, apiKey) => {

@@ -12,16 +12,31 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    // Auto-recuperação de dados corrompidos legados em cache
+    if (error && error.message && (error.message.includes('inscricao_inicio') || error.message.includes('undefined'))) {
+      try {
+        localStorage.removeItem('concurso_study_plan');
+        localStorage.removeItem('concurso_parsed_edital');
+      } catch (e) {}
+    }
   }
 
   handleReset = () => {
     try {
-      // Remove apenas planos ou editais corrompidos, preservando login do usuário
+      // Remove dados locais corrompidos
       localStorage.removeItem('concurso_study_plan');
       localStorage.removeItem('concurso_parsed_edital');
+      localStorage.removeItem('concurso_editais_history');
       sessionStorage.clear();
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => caches.delete(name));
+        });
+      }
     } catch (e) {}
-    window.location.reload();
+    // Força recarregamento limpo desabilitando qualquer cache de navegador
+    const cleanUrl = window.location.origin + window.location.pathname + '?v=' + Date.now();
+    window.location.replace(cleanUrl);
   };
 
   render() {

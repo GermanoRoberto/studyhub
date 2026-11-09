@@ -17,9 +17,36 @@ let Tesseract = null;
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { localSubjectsDb } = require('./localDb.cjs');
 const { localSummariesDb } = require('./localSummariesDb.cjs');
-require('dotenv').config();
+function getGeminiApiKey() {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.VITE_GOOGLE_API_KEY ||
+    process.env.GEMINI_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.API_KEY ||
+    process.env.AI_API_KEY ||
+    process.env.gemini_api_key ||
+    process.env.google_api_key ||
+    ''
+  ).trim();
+}
 
-const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+const DEFAULT_GEMINI_KEY = getGeminiApiKey();
+
+function resolveAiAuth(req) {
+  const geminiEnvKey = getGeminiApiKey();
+  let apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey === 'undefined' || apiKey === 'null' || apiKey.trim() === '') {
+    apiKey = geminiEnvKey;
+  }
+  let provider = req.headers['x-provider'];
+  if (!provider || provider === 'undefined' || provider === 'null' || (provider === 'offline' && geminiEnvKey)) {
+    provider = apiKey ? 'gemini' : 'offline';
+  }
+  return { provider, apiKey };
+}
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -641,8 +668,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     }
 
     // Compilação inteligente do Snippet (Head + Tail) para garantir que tabelas de anexos/remunerações no final não sejam cortadas
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     let editalSnippet = editalText;
     if (provider === 'ollama') {
@@ -729,8 +755,7 @@ app.post('/api/generate-dashboard', async (req, res) => {
       return res.status(400).json({ error: 'Cargo não selecionado' });
     }
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     // Se estiver offline ou sem IA, roda o gerador de cronograma local inteligente baseado em palavras-chave
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -787,8 +812,7 @@ app.post('/api/search-dates', async (req, res) => {
       return res.status(400).json({ error: 'Concurso não informado' });
     }
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     return res.status(501).json({
       error: 'Automatic date lookup is disabled until an official-search integration is configured.'
@@ -849,8 +873,7 @@ app.post('/api/generate-exercises', async (req, res) => {
       return res.status(400).json({ error: 'Matéria é obrigatória' });
     }
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     // Se estiver offline ou sem IA, busca as questões reais no banco local do backend
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -927,8 +950,7 @@ app.post('/api/generate-subject-exercises', async (req, res) => {
       return res.status(400).json({ error: 'Matéria é obrigatória' });
     }
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
     const limit = numQuestoes || 10;
 
     // Se estiver offline ou sem IA, tenta pegar do localDb e multiplicar/mockar se necessário
@@ -1029,8 +1051,7 @@ app.post('/api/generate-revisional', async (req, res) => {
       return res.json({ revisional: "# 🎉 Parabéns!\n\nVocê não cometeu erros neste simulado! Continue revisando os conceitos gerais." });
     }
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     // Se estiver offline ou sem chave, gera o material off-line
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1096,8 +1117,7 @@ app.post('/api/generate-summary', async (req, res) => {
     }
 
     const currentMode = mode || 'explicador';
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     // Se estiver offline ou sem IA, busca nos resumos pré-programados ou gera fallbacks inteligentes
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1447,8 +1467,7 @@ app.post('/api/monitor/upload-print', upload.single('file'), async (req, res) =>
     const extractedText = ocrResult.data.text;
     console.log("OCR Concluído. Comprimento do texto extraído:", extractedText.length);
 
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     // Se estiver offline ou sem chave, faz uma extração heurística básica do texto
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1508,8 +1527,7 @@ app.post('/api/monitor/upload-print', upload.single('file'), async (req, res) =>
 app.post('/api/monitor/check-update', async (req, res) => {
   try {
     const { concurso, status, banca } = req.body;
-    const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
+    const { provider, apiKey } = resolveAiAuth(req);
 
     console.log(`Buscando atualizações na web para: ${concurso}`);
 

@@ -102,9 +102,31 @@ export default async function handler(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
-  // Rota de Health Check
-  if (pathname === '/api/health' || pathname === '/health') {
-    return res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  // Rota de Health Check e Configuração de IA no Vercel
+  if (pathname === '/api/config' || pathname === '/config' || pathname === '/api/health' || pathname === '/health') {
+    const geminiKey = (
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.VITE_GEMINI_API_KEY ||
+      process.env.VITE_GOOGLE_API_KEY ||
+      process.env.GEMINI_KEY ||
+      process.env.GOOGLE_GENAI_API_KEY ||
+      process.env.API_KEY ||
+      process.env.AI_API_KEY ||
+      process.env.gemini_api_key ||
+      process.env.google_api_key ||
+      ''
+    ).trim();
+
+    return res.status(200).json({
+      status: 'ok',
+      hasGeminiKey: !!geminiKey,
+      keyConfiguredVia: geminiKey ? 'Vercel Environment Variable' : 'none',
+      provider: geminiKey ? 'gemini' : 'offline',
+      model: 'gemini-2.5-flash',
+      user: AUTH_USER,
+      timestamp: new Date().toISOString()
+    });
   }
 
   // Rota de Login Segura

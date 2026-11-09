@@ -4,7 +4,7 @@ import UploadPanel from './components/UploadPanel';
 import Dashboard from './components/Dashboard';
 import RadarMonitor from './components/RadarMonitor';
 import Login from './components/Login';
-import { generateDashboard, verifyAuthToken, fetchCloudUserData, saveCloudUserData } from './services/api';
+import { generateDashboard, verifyAuthToken, fetchCloudUserData, saveCloudUserData, getSystemConfig } from './services/api';
 import './App.css';
 
 function App() {
@@ -14,6 +14,7 @@ function App() {
 
   const [provider, setProvider] = useState(() => localStorage.getItem('concurso_provider') || 'gemini');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('concurso_api_key') || '');
+  const [isVercelAiConfigured, setIsVercelAiConfigured] = useState(false);
   const [parsedEdital, setParsedEdital] = useState(null);
   const [selectedCargo, setSelectedCargo] = useState('');
   const [studyPlan, setStudyPlan] = useState(null);
@@ -41,6 +42,15 @@ function App() {
       setAuthChecking(false);
     }
 
+    // Consulta status da IA configurada no Vercel
+    getSystemConfig().then(cfg => {
+      if (cfg && cfg.hasGeminiKey) {
+        setIsVercelAiConfigured(true);
+        setProvider('gemini');
+        localStorage.setItem('concurso_provider', 'gemini');
+      }
+    }).catch(() => {});
+
     const savedProvider = localStorage.getItem('concurso_provider');
     if (savedProvider) {
       setProvider(savedProvider);
@@ -63,6 +73,10 @@ function App() {
       try {
         const parsedPlan = JSON.parse(savedPlan);
         if (parsedPlan && typeof parsedPlan === 'object') {
+          // Garante que datas seja sempre um objeto válido
+          if (!parsedPlan.datas || typeof parsedPlan.datas !== 'object') {
+            parsedPlan.datas = { inscricao_inicio: '', inscricao_fim: '', prova: '' };
+          }
           // Se o plano salvo não tem cargoDetails mas temos o edital salvo, faz o upgrade dinâmico em tempo de carregamento
           if (!parsedPlan.cargoDetails && savedEdital) {
             try {
@@ -265,10 +279,11 @@ function App() {
   };
 
   const handleDatesUpdated = (newDates) => {
+    if (!studyPlan) return;
     const updatedPlan = {
       ...studyPlan,
       datas: {
-        ...studyPlan.datas,
+        ...(studyPlan.datas || {}),
         ...newDates
       }
     };
@@ -373,6 +388,7 @@ function App() {
         setView={setView}
         currentUser={currentUser}
         onLogout={handleLogout}
+        isVercelAiConfigured={isVercelAiConfigured}
       />
 
       <main style={{ flex: 1 }}>

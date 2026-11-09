@@ -224,7 +224,7 @@ export default function UploadPanel({ provider, apiKey, uploadedEditais, studyPl
                     <div className="demo-banca">{demo.banca}</div>
                     <div className="demo-details">
                       <span>{demo.cargos.length} cargo(s)</span>
-                      <span>Prova: {demo.datas.prova.split('-').reverse().join('/')}</span>
+                      <span>Prova: {demo.datas?.prova ? demo.datas.prova.split('-').reverse().join('/') : 'A definir'}</span>
                     </div>
                   </div>
                 ))}
