@@ -192,18 +192,20 @@ export default async function handler(req, res) {
     const seen = new Set();
     const combined = [];
     
-    // Prioriza os itens do catálogo enriquecidos
+    // Prioriza os itens do catálogo enriquecidos e oficiais
     for (const c of concursosCatalog) {
       const key = (c.orgao || '').toLowerCase();
       seen.add(key);
       combined.push(c);
     }
-    // Adiciona novidades do feed RSS
+    // Adiciona apenas concursos reais e específicos do feed RSS que não estejam no catálogo
     for (const item of liveItems) {
-      const key = (item.orgao || '').toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        combined.unshift(item); // Coloca notícias frescas no topo!
+      if (item.orgao && item.orgao.length >= 4 && !/prefeituras\s*\d{4}|guia|panorama|lista/i.test(item.orgao)) {
+        const key = (item.orgao || '').toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          combined.push(item);
+        }
       }
     }
 

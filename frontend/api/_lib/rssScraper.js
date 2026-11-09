@@ -125,8 +125,17 @@ export async function fetchLiveConcursosFromRss() {
         const link = linkMatch ? cleanText(linkMatch[1]) : '';
         const pubDateStr = pubDateMatch ? cleanText(pubDateMatch[1]) : '';
 
-        // Ignora notícias que não sejam sobre concursos públicos
+        // 1. Ignora notícias que não sejam sobre concursos públicos
         if (!rawTitle.toLowerCase().includes('concurso') && !rawTitle.toLowerCase().includes('edital') && !rawTitle.toLowerCase().includes('processo seletivo')) {
+          continue;
+        }
+
+        // 2. Descarta matérias genéricas de blog, compilações, guias, dicas ou roundups
+        const isGenericBlogRoundup = 
+          /(?:confira|guia|panorama|lista|centenas de vagas|dicas|o que esperar|veja os editais|resumo dos concursos|concursos abertos e previstos|o que estudar|como passar|prepara[cç][aã]o|concursos?\s+prefeituras\s*\d{4})/i.test(rawTitle) ||
+          /^(?:concursos?\s+(?:em\s+)?\d{4}|concursos?\s+prefeituras|editais?\s+previstos?)/i.test(rawTitle.trim());
+
+        if (isGenericBlogRoundup) {
           continue;
         }
 
@@ -136,22 +145,45 @@ export async function fetchLiveConcursosFromRss() {
           continue;
         }
 
+        // Extrai o nome do órgão com precisão
+        let cleanOrgao = rawTitle
+          .replace(/^(?:concurso|edital|processo seletivo)\s*(?:p[uú]blico)?\s*(?:da|do|de|para)?\s*/i, '')
+          .split(/[\:\-\–\|]/)[0]
+          .trim();
+
+        // Se o órgão for genérico ou truncado (ex: "s Prefeituras"), rejeita
+        if (!cleanOrgao || cleanOrgao.length < 4 || /^(?:prefeituras?|v[aá]rias|diversos?|nacional|brasil|vagas)$/i.test(cleanOrgao)) {
+          continue;
+        }
+
+        // Se o título começar com letra minúscula solta (ex: "s Prefeituras"), ignora
+        if (/^[a-z]\s+/i.test(cleanOrgao)) {
+          continue;
+        }
+
         const area = classifyArea(rawTitle, rawDesc);
         const taf = detectTaf(rawTitle, rawDesc, area);
 
         // Gera id único baseado no título
-        const slug = rawTitle.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
+        const slug = cleanOrgao.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 40);
+
+        // Extrai o cargo ou usa denominação padrão
+        let cleanCargo = 'Diversos Cargos (Conforme Edital)';
+        const titleParts = rawTitle.split(/[\:\-\–\|]/);
+        if (titleParts.length > 1) {
+          cleanCargo = titleParts.slice(1).join(' - ').trim();
+        }
 
         results.push({
           id: `rss_${slug}`,
-          orgao: rawTitle.split(':')[0].replace(/concurso/i, '').trim() || rawTitle,
+          orgao: cleanOrgao,
           area,
-          cargo: rawTitle,
+          cargo: cleanCargo,
           status,
           banca: 'Consulte no Edital',
-          vagas: 'Veja no Link Oficial',
-          remuneracao: 'A Definir',
-          escolaridade: area === 'TI' ? 'Superior em TI/Qualquer Área' : 'Médio/Superior',
+          vagas: 'Consulte no Edital',
+          remuneracao: 'A Consultar no Edital',
+          escolaridade: area === 'TI' ? 'Superior em TI / Qualquer Área' : 'Médio / Superior',
           taf_tipo: taf.tipo,
           taf_descricao: taf.descricao,
           idade_maxima: (area === 'Militar' && rawTitle.toLowerCase().includes('soldado')) ? 30 : null,

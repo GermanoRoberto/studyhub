@@ -76,23 +76,28 @@ export default function ProfileModal({ isOpen, onClose, currentProfile, onSavePr
             </div>
           </div>
 
-          {/* CAMPO ESCOLARIDADE */}
+          {/* CAMPO ESCOLARIDADE E FORMAÇÃO */}
           <div className="input-group">
             <label style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '6px' }}>
-              🎓 Sua Formação / Escolaridade:
+              🎓 Sua Formação / Graduação:
             </label>
             <select 
               value={escolaridade}
               onChange={(e) => setEscolaridade(e.target.value)}
               className="text-input"
-              style={{ width: '100%', fontSize: '14px' }}
+              style={{ width: '100%', fontSize: '13px' }}
             >
               <option value="medio">Ensino Médio / Técnico Completo</option>
-              <option value="superior_ti">Superior em TI / Computação / Sistemas</option>
-              <option value="superior_direito">Superior em Direito (Bacharelado)</option>
+              <option value="superior_qualquer">Nível Superior em Qualquer Área (Tecnólogo / Licenciatura / Bacharel)</option>
+              <option value="superior_ti">Superior em TI / Computação / Análise de Sistemas</option>
               <option value="superior_adm">Superior em Administração / Contábeis / Economia</option>
-              <option value="superior_qualquer">Nível Superior em Qualquer Área (Tecnólogo/Licenciatura/Bacharel)</option>
+              <option value="superior_direito">Superior em Direito (Bacharelado)</option>
+              <option value="superior_saude">Superior em Saúde (Medicina / Enfermagem / Odontologia)</option>
+              <option value="superior_educacao">Superior em Educação / Licenciatura Plena / Pedagogia</option>
             </select>
+            <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              💡 <strong>Regra Inteligente:</strong> Concursos como <em>Auditor Fiscal (Receita/SEFAZ)</em>, <em>Bancos</em> e <em>Analista Administrativo</em> aceitam <strong>qualquer graduação</strong>. Concursos como <em>Juiz, Promotor e Delegado</em> exigem estritamente <strong>Direito</strong>.
+            </p>
           </div>
 
           {/* CONDIÇÃO FÍSICA E TAF */}

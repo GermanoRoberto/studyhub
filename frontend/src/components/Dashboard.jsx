@@ -24,8 +24,10 @@ export default function Dashboard({ studyPlan, apiKey, provider, onDatesUpdated,
           banca={studyPlan?.banca || ''} 
           apiKey={apiKey}
           onDatesUpdated={onDatesUpdated}
-          cargoDetails={studyPlan.cargoDetails}
-          cargoName={studyPlan.cargo}
+          cargoDetails={studyPlan?.cargoDetails}
+          cargoName={studyPlan?.cargo}
+          studyPlan={studyPlan}
+          onUpdatePlan={onUpdatePlan}
         />
       </div>
 

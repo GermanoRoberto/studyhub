@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { searchDates } from '../services/api';
+import CargoSelectionModal from './CargoSelectionModal';
 
-export default function DateTracker({ dates, concursoName, banca, apiKey, onDatesUpdated, cargoDetails, cargoName }) {
+export default function DateTracker({ dates, concursoName, banca, apiKey, onDatesUpdated, cargoDetails, cargoName, studyPlan, onUpdatePlan }) {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [syncing, setSyncing] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [isCargoModalOpen, setIsCargoModalOpen] = useState(false);
 
   // Trunca texto longo
   const truncateText = (str, max) => {
@@ -72,12 +74,57 @@ export default function DateTracker({ dates, concursoName, banca, apiKey, onDate
     <div className="concurso-info-card glass-card animate-fade-in" style={{ padding: '20px' }}>
       
       {/* CABEÇALHO DO CARGO (Título Principal) */}
-      <h3 className="concurso-name-title" style={{ fontSize: '16px', color: 'var(--accent-cyan)', fontWeight: 'bold', lineHeight: '1.4', margin: '0 0 4px 0' }}>
-        💼 {finalCargoName}
-      </h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '4px' }}>
+        <h3 className="concurso-name-title" style={{ fontSize: '15px', color: 'var(--accent-cyan)', fontWeight: 'bold', lineHeight: '1.3', margin: 0 }}>
+          💼 {finalCargoName}
+        </h3>
+        {onUpdatePlan && (
+          <button
+            onClick={() => setIsCargoModalOpen(true)}
+            title="Alterar cargo pretendido neste concurso"
+            style={{
+              background: 'rgba(0, 240, 255, 0.1)',
+              border: '1px solid rgba(0, 240, 255, 0.25)',
+              color: 'var(--accent-cyan)',
+              borderRadius: '4px',
+              padding: '3px 8px',
+              fontSize: '11px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            ✏️ Trocar Cargo
+          </button>
+        )}
+      </div>
+
       <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
         {banca || 'Banca Não Definida'} | {truncateText(concursoName, 60)}
       </div>
+
+      {/* MODAL DE SELEÇÃO/TROCA DE CARGO */}
+      {isCargoModalOpen && (
+        <CargoSelectionModal 
+          isOpen={isCargoModalOpen}
+          onClose={() => setIsCargoModalOpen(false)}
+          concursoItem={{
+            concurso: concursoName,
+            orgao: concursoName,
+            banca: banca,
+            area: studyPlan?.area || 'Administrativa',
+            datas: dates,
+            vagas: cargoDetails?.vagas,
+            remuneracao: cargoDetails?.salario
+          }}
+          userProfile={(() => {
+            try { return JSON.parse(localStorage.getItem('studyhub_user_profile')) || {}; } catch(e) { return {}; }
+          })()}
+          onConfirmCargo={(newPlan) => {
+            onUpdatePlan(newPlan);
+          }}
+        />
+      )}
 
       <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '14px' }}>
         
