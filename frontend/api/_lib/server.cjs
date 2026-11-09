@@ -17,6 +17,9 @@ let Tesseract = null;
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { localSubjectsDb } = require('./localDb.cjs');
 const { localSummariesDb } = require('./localSummariesDb.cjs');
+
+// Cache em memória de planos de estudo para eliminar chamadas repetidas à IA (0 tokens)
+const planCache = new Map();
 function getGeminiApiKey() {
   return (
     process.env.GEMINI_API_KEY ||
@@ -530,6 +533,121 @@ function parseSafeJSON(text) {
   }
 }
 
+// Extração cirúrgica do Conteúdo Programático do cargo
+// Reduz o texto enviado à IA de 80.000+ caracteres para ~4.000 a 7.000 caracteres (economia de 90% a 95% de tokens)
+function extractSyllabusSection(editalText, cargo) {
+  if (!editalText) return "";
+  if (editalText.length <= 6000) return editalText;
+
+  const normalized = editalText;
+  const cargoLower = (cargo || "").toLowerCase().trim();
+  
+  // Marcadores frequentes de conteúdo programático
+  const sectionKeywords = [
+    /CONTEÚDO\s+PROGRAM[ÁA]TICO/i,
+    /OBJETOS\s+DE\s+AVALIA[ÇC][ÃA]O/i,
+    /DOS\s+CONHECIMENTOS\s+(B[ÁA]SICOS|ESPEC[ÍI]FICOS)/i,
+    /PROGRAMA\s+DAS\s+PROVAS/i,
+    /ANEXO\s+[I|V|X\d]+\s*[-–:]\s*CONTE[ÚU]DO/i,
+    /QUADRO\s+DE\s+PROVAS\s+E\s+DISCIPLINAS/i,
+    /DISCIPLINAS\s+E\s+CONTE[ÚU]DOS/i
+  ];
+
+  let bestIndex = -1;
+  for (const regex of sectionKeywords) {
+    const match = regex.exec(normalized);
+    if (match && (bestIndex === -1 || match.index < bestIndex)) {
+      bestIndex = match.index;
+    }
+  }
+
+  if (bestIndex !== -1) {
+    const syllabusSlice = normalized.substring(bestIndex);
+    
+    // Tenta encontrar o trecho específico do cargo dentro do conteúdo programático
+    if (cargoLower) {
+      const cargoWords = cargoLower.split(/\s+/).filter(w => w.length > 3);
+      let cargoIndex = -1;
+      
+      const exactPos = syllabusSlice.toLowerCase().indexOf(cargoLower);
+      if (exactPos !== -1) {
+        cargoIndex = exactPos;
+      } else if (cargoWords.length > 0) {
+        for (const w of cargoWords) {
+          const wPos = syllabusSlice.toLowerCase().indexOf(w);
+          if (wPos !== -1 && (cargoIndex === -1 || wPos < cargoIndex)) {
+            cargoIndex = wPos;
+          }
+        }
+      }
+
+      if (cargoIndex !== -1) {
+        const generalSlice = syllabusSlice.substring(0, 3000);
+        const specificSlice = syllabusSlice.substring(cargoIndex, cargoIndex + 4500);
+        return `${generalSlice}\n\n[...CONTEÚDO ESPECÍFICO DO CARGO...]\n\n${specificSlice}`;
+      }
+    }
+
+    return syllabusSlice.substring(0, 7000);
+  }
+
+  // Se não achou marcadores de anexo, busca a primeira disciplina mencionada
+  const subjectAnchor = /(portugu[êe]s|racioc[íi]nio\s+l[óo]gico|direito\s+constitucional|inform[áa]tica)/i.exec(normalized);
+  if (subjectAnchor) {
+    const start = Math.max(0, subjectAnchor.index - 300);
+    return normalized.substring(start, start + 6500);
+  }
+
+  return normalized.substring(0, 5000);
+}
+
+// Analisador determinístico para editais com matérias e tópicos já enumerados (0 tokens de IA gastos)
+function tryDeterministicSubjects(snippet) {
+  if (!snippet) return [];
+  const subjectRegex = /(?:^|\n)\s*(L[ÍI]NGUA PORTUGUESA|PORTUGU[ÊE]S|RACIOC[ÍI]NIO L[ÓO]GICO|MATEM[ÁA]TICA|DIREITO\s+CONSTITUCIONAL|DIREITO\s+ADMINISTRATIVO|NO[ÇC][ÕO]ES\s+DE\s+INFORM[ÁA]TICA|INFORM[ÁA]TICA|LEGISLA[ÇC][ÃA]O\s+ESPEC[ÍI]FICA|CONHECIMENTOS\s+B[ÁA]SICOS|CONHECIMENTOS\s+ESPEC[ÍI]FICOS|SEGURAN[ÇC]A\s+DA\s+INFORMA[ÇC][ÃA]O|BANCO\s+DE\s+DADOS|ENGENHARIA\s+DE\s+SOFTWARE|ADMINISTRA[ÇC][ÃA]O\s+P[ÚU]BLICA|CONTABILIDADE)[\s:–-]+([\s\S]*?)(?=(?:\n\s*(?:L[ÍI]NGUA|PORTUGU[ÊE]S|RACIOC[ÍI]NIO|MATEM[ÁA]TICA|DIREITO|NO[ÇC][ÕO]ES|INFORM[ÁA]TICA|LEGISLA[ÇC][ÃA]O|CONHECIMENTOS|SEGURAN[ÇC]A|BANCO|ENGENHARIA|ADMINISTRA|CONTABILIDADE|$)))/gi;
+
+  const subjects = [];
+  const seen = new Set();
+  let match;
+  while ((match = subjectRegex.exec(snippet)) !== null) {
+    const rawName = match[1].trim();
+    const cleanName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+    if (seen.has(cleanName)) continue;
+    seen.add(cleanName);
+
+    const rawTopics = match[2].trim();
+    const topics = rawTopics
+      .split(/(?:\d+[\.\)]\s*|[;•\n]+)/)
+      .map(t => t.trim().replace(/^[\.,;-]\s*/, ''))
+      .filter(t => t.length > 3 && t.length < 100)
+      .slice(0, 5);
+
+    if (topics.length >= 2) {
+      subjects.push({
+        nome: cleanName,
+        topicos: topics
+      });
+    }
+  }
+  return subjects;
+}
+
+function buildWeeklySchedule(materias) {
+  const diasSemana = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"];
+  const cronograma = [];
+  diasSemana.forEach((dia, idx) => {
+    if (dia === "Domingo") {
+      cronograma.push({ dia, materias: ["Descanso"] });
+    } else if (dia === "Sábado") {
+      cronograma.push({ dia, materias: ["Simulado Geral & Revisão"] });
+    } else {
+      const mIdx = idx % materias.length;
+      cronograma.push({ dia, materias: [materias[mIdx].nome] });
+    }
+  });
+  return cronograma;
+}
+
 // Handler genérico de IA baseado no provider selecionado (Ollama / OpenAI / Gemini / Groq)
 async function callIA(provider, apiKey, prompt) {
   if (provider === 'ollama') {
@@ -621,14 +739,18 @@ async function callIA(provider, apiKey, prompt) {
     return JSON.parse(data.choices[0].message.content.trim());
 
   } else {
-    // Gemini API padrão (atualizado para gemini-2.5-flash)
-    console.log("Chamando Gemini API (gemini-2.5-flash)...");
+    // Gemini API padrão (atualizado para gemini-2.5-flash com limite estrito de tokens)
+    console.log("Chamando Gemini API (gemini-2.5-flash com otimização de tokens)...");
     const genAI = new GoogleGenerativeAI(apiKey);
     try {
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const response = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
+        generationConfig: { 
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          maxOutputTokens: 1500
+        }
       });
       return JSON.parse(response.response.text().trim());
     } catch (err) {
@@ -636,7 +758,11 @@ async function callIA(provider, apiKey, prompt) {
       const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
       const response = await fallbackModel.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json' }
+        generationConfig: { 
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          maxOutputTokens: 1500
+        }
       });
       return JSON.parse(response.response.text().trim());
     }
@@ -679,10 +805,10 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         editalSnippet = `${head}\n\n[...TRECHO INTERMEDIÁRIO DO EDITAL OCULTADO PARA ECONOMIA DE CONTEXTO LOCAL...]\n\n${tail}`;
       }
     } else {
-      // Snippet maior de 220k total para IAs na nuvem
-      if (editalText.length > 220000) {
-        const head = editalText.substring(0, 120000);
-        const tail = editalText.substring(editalText.length - 100000);
+      // Otimização de contexto para IAs na nuvem: 18k head + 18k tail (36k total, economia de 84% de tokens)
+      if (editalText.length > 36000) {
+        const head = editalText.substring(0, 18000);
+        const tail = editalText.substring(editalText.length - 18000);
         editalSnippet = `${head}\n\n[...TRECHO INTERMEDIÁRIO DO EDITAL OCULTADO PARA ECONOMIA DE CONTEXTO...]\n\n${tail}`;
       }
     }
@@ -747,7 +873,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// ROTA 2: Obter matérias e gerar cronograma para o cargo selecionado
+// ROTA 2: Obter matérias e gerar cronograma para o cargo selecionado (Ultra Otimizado)
 app.post('/api/generate-dashboard', async (req, res) => {
   const { cargo, editalText } = req.body;
   try {
@@ -757,43 +883,67 @@ app.post('/api/generate-dashboard', async (req, res) => {
 
     const { provider, apiKey } = resolveAiAuth(req);
 
+    // 1. Chave de Cache em memória (0 consumo para cargos/editais repetidos)
+    const textHash = crypto.createHash('md5').update((editalText || '').substring(0, 20000)).digest('hex').substring(0, 12);
+    const cacheKey = `${(cargo || '').toLowerCase().trim()}_${textHash}`;
+    if (planCache.has(cacheKey)) {
+      console.log(`[Cache Hit] Retornando matérias e cronograma para cargo "${cargo}" (0 tokens gastos)`);
+      return res.json(planCache.get(cacheKey));
+    }
+
     // Se estiver offline ou sem IA, roda o gerador de cronograma local inteligente baseado em palavras-chave
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
       console.log("Gerando dashboard inteligente offline para cargo:", cargo);
       const dashboard = runLocalHeuristicDashboard(cargo, editalText);
+      planCache.set(cacheKey, dashboard);
       return res.json(dashboard);
     }
 
-    // Chamada à IA
-    const prompt = `
-      Com base no seguinte edital de concurso, analise e extraia o plano de estudos detalhado para o cargo de "${cargo}".
-      Retorne em formato JSON a lista de matérias (disciplinas), os tópicos de estudo para cada uma (máximo 5 principais), e crie um cronograma semanal de estudos equilibrado (Segunda a Domingo) focando nestas matérias.
+    // 2. Extração cirúrgica do conteúdo programático (reduz ~90% a 95% do tamanho do texto)
+    const syllabusSnippet = extractSyllabusSection(editalText, cargo);
 
-      Responda EXCLUSIVAMENTE com o objeto JSON estruturado:
+    // 3. Tenta extração determinística direta do edital (se o edital já enumera tópicos claramente)
+    const deterministicSubjects = tryDeterministicSubjects(syllabusSnippet);
+    if (deterministicSubjects.length >= 3) {
+      console.log(`[Parser Determinístico] ${deterministicSubjects.length} matérias mapeadas diretamente do edital sem gastar tokens de IA.`);
+      const cronograma = buildWeeklySchedule(deterministicSubjects);
+      const plan = { cargo, materias: deterministicSubjects, cronograma, source: 'optimized_extractor' };
+      planCache.set(cacheKey, plan);
+      return res.json(plan);
+    }
+
+    // 4. Chamada ultra otimizada à IA com trecho cirúrgico conciso de apenas 4k-7k chars (em vez de 80.000 chars)
+    const prompt = `
+      Com base no seguinte extrato de conteúdo programático do edital para o cargo "${cargo}", estruture o plano de estudos.
+      Retorne em formato JSON a lista de matérias (máximo 5 tópicos por matéria) e monte um cronograma semanal equilibrado (Segunda a Domingo).
+      
+      JSON estrito:
       {
         "cargo": "${cargo}",
         "materias": [
           {
-            "nome": "Nome da Disciplina",
-            "topicos": ["Tópico 1", "Tópico 2", "Tópico 3"]
+            "nome": "Nome da Matéria",
+            "topicos": ["Tópico 1", "Tópico 2"]
           }
         ],
         "cronograma": [
           {
             "dia": "Segunda-feira",
-            "materias": ["Nome da Disciplina 1"]
+            "materias": ["Nome da Matéria"]
           }
         ]
       }
 
-      Edital:
-      ${(editalText || "").substring(0, 80000)}
+      Conteúdo Programático:
+      ${syllabusSnippet}
     `;
 
     const result = await callIA(provider, apiKey, prompt);
     if (!result || !result.materias || !result.cronograma) {
       throw new Error("Formato de dashboard da IA inválido ou incompleto.");
     }
+
+    planCache.set(cacheKey, result);
     return res.json(result);
 
   } catch (error) {

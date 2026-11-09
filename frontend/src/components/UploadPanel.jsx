@@ -251,6 +251,21 @@ export default function UploadPanel({ provider, apiKey, uploadedEditais, studyPl
             ← Voltar para upload
           </button>
           <h3 className="cargo-title">Selecione o Cargo Pretendido</h3>
+          <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(0, 240, 255, 0.08)',
+              border: '1px solid rgba(0, 240, 255, 0.25)',
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '12px',
+              color: 'var(--accent-cyan)'
+            }}>
+              ⚡ <strong>Processamento Otimizado:</strong> Extração cirúrgica de disciplinas economiza até 95% dos tokens da IA.
+            </span>
+          </div>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px', textAlign: 'center' }}>
             Detectamos {cargos.length} cargo(s) descritos no edital. Escolha um para gerar seu cronograma e simulados específicos:
           </p>
