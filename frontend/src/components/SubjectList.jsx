@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TopicStudyPage from './TopicStudyPage';
 import SubjectStudySimulator from './SubjectStudySimulator';
+import { getTopicMiniSummary } from '../utils/miniSummaries';
 
 export default function SubjectList({ materias, cargo, concursoKey, provider, apiKey, banca, studyPlan, onUpdatePlan }) {
   const [progress, setProgress] = useState({});
@@ -222,12 +223,15 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
                   {subject.topicos.map((topic, tIdx) => {
                     const key = `${sIdx}_${tIdx}`;
                     const states = progress[key] || { studied: false, revised: false, exercises: false };
+                    const topicName = typeof topic === 'string' ? topic : (topic.nome || topic.topico || topic.title || String(topic));
+                    const miniSummary = getTopicMiniSummary(topic, subject.nome);
 
                     return (
-                      <div key={tIdx} className="topic-item" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px 16px' }}>
+                      <div key={tIdx} className="topic-item" style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px 16px' }}>
+                        {/* Linha superior: Título do tópico + Botão de Ver Resumo Teórico */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className="topic-name" style={{ fontWeight: '500', fontSize: '14px' }}>{topic}</span>
+                            <span className="topic-name" style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-main)' }}>{topicName}</span>
                             {onUpdatePlan && (
                               <button 
                                 onClick={() => handleRemoveTopic(sIdx, tIdx)}
@@ -250,7 +254,7 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
                           
                           <button 
                             className="study-notes-btn"
-                            onClick={() => handleViewSummary(sIdx, tIdx, subject.nome, topic)}
+                            onClick={() => handleViewSummary(sIdx, tIdx, subject.nome, topicName)}
                             style={{
                               background: 'rgba(0, 240, 255, 0.08)',
                               color: 'var(--accent-cyan)',
@@ -270,25 +274,50 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
                           </button>
                         </div>
                         
-                        <div className="topic-checkboxes" style={{ alignSelf: 'flex-end', marginTop: '4px' }}>
-                          <button 
-                            className={`chk-btn ${states.studied ? 'checked' : ''}`}
-                            onClick={() => handleToggle(sIdx, tIdx, 'studied')}
-                          >
-                            {states.studied ? '✓ Estudado' : 'Estudar'}
-                          </button>
-                          <button 
-                            className={`chk-btn ${states.revised ? 'checked-revision' : ''}`}
-                            onClick={() => handleToggle(sIdx, tIdx, 'revised')}
-                          >
-                            {states.revised ? '✓ Revisado' : 'Revisar'}
-                          </button>
-                          <button 
-                            className={`chk-btn ${states.exercises ? 'checked-questions' : ''}`}
-                            onClick={() => handleToggle(sIdx, tIdx, 'exercises')}
-                          >
-                            {states.exercises ? '✓ Exercícios' : 'Exercícios'}
-                          </button>
+                        {/* Linha inferior: Mini-resumo de no máximo 2 linhas + Ações de Estudo */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center', 
+                          gap: '16px',
+                          flexWrap: 'wrap'
+                        }}>
+                          <p style={{
+                            margin: 0,
+                            flex: 1,
+                            minWidth: '220px',
+                            fontSize: '12px',
+                            color: 'rgba(255, 255, 255, 0.55)',
+                            lineHeight: '1.45',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                            {miniSummary}
+                          </p>
+
+                          <div className="topic-checkboxes" style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                            <button 
+                              className={`chk-btn ${states.studied ? 'checked' : ''}`}
+                              onClick={() => handleToggle(sIdx, tIdx, 'studied')}
+                            >
+                              {states.studied ? '✓ Estudado' : 'Estudar'}
+                            </button>
+                            <button 
+                              className={`chk-btn ${states.revised ? 'checked-revision' : ''}`}
+                              onClick={() => handleToggle(sIdx, tIdx, 'revised')}
+                            >
+                              {states.revised ? '✓ Revisado' : 'Revisar'}
+                            </button>
+                            <button 
+                              className={`chk-btn ${states.exercises ? 'checked-questions' : ''}`}
+                              onClick={() => handleToggle(sIdx, tIdx, 'exercises')}
+                            >
+                              {states.exercises ? '✓ Exercícios' : 'Exercícios'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
