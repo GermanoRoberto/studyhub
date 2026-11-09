@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
-const Tesseract = require('tesseract.js');
+let Tesseract = null;
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { localSubjectsDb } = require('./localDb.cjs');
 const { localSummariesDb } = require('./localSummariesDb.cjs');
@@ -10,6 +10,14 @@ require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+
+// Normalizador de rotas para Vercel Serverless (garante que /auth/login seja tratado como /api/auth/login)
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api')) {
+    req.url = '/api' + req.url;
+  }
+  next();
+});
 
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
   .split(',').map(origin => origin.trim()).filter(Boolean));
@@ -1406,6 +1414,9 @@ app.post('/api/monitor/upload-print', upload.single('file'), async (req, res) =>
     }
 
     console.log("Iniciando OCR do print de concurso...");
+    if (!Tesseract) {
+      Tesseract = require('tesseract.js');
+    }
     // Tesseract processa a imagem do buffer
     const ocrResult = await Tesseract.recognize(req.file.buffer, 'por');
     const extractedText = ocrResult.data.text;
@@ -1586,17 +1597,22 @@ app.get('/api/health', (req, res) => {
 });
 
 const path = require('path');
-// Servir arquivos estáticos do frontend em produção
+const fs = require('fs');
+// Servir arquivos estáticos do frontend apenas se o diretório existir (em ambiente local)
 const frontendDistPath = path.join(__dirname, '../frontend/dist');
-app.use(express.static(frontendDistPath));
-
-// Fallback para qualquer rota que não seja da API para carregar o index.html do React
-app.get('*all', (req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    return next();
-  }
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
-});
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get('*all', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    const indexPath = path.join(frontendDistPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+    next();
+  });
+}
 
 // Inicia o Servidor
 app.use((error, req, res, next) => {

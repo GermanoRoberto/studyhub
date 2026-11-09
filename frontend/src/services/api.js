@@ -6,9 +6,17 @@ export const login = async (username, password) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
-  const data = await response.json();
+  let data = null;
+  const text = await response.text();
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    if (!response.ok) {
+      throw new Error(`Erro ${response.status}: Servidor temporariamente indisponível.`);
+    }
+  }
   if (!response.ok) {
-    throw new Error(data.error || 'Falha na autenticação.');
+    throw new Error((data && data.error) || 'Falha na autenticação.');
   }
   return data;
 };
