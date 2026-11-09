@@ -18,7 +18,8 @@ app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    if (isLocal || allowedOrigins.has(origin)) return callback(null, true);
+    const isVercel = /\.vercel\.app$/.test(origin);
+    if (isLocal || isVercel || allowedOrigins.has(origin)) return callback(null, true);
     return callback(new Error('Origin not allowed by CORS'));
   },
   methods: ['GET', 'POST'],
@@ -1469,6 +1470,11 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: 'Internal server error.' });
 });
 
-app.listen(port, '127.0.0.1', () => {
-  console.log(`Backend do Concurso Study Hub rodando na porta ${port}`);
-});
+if (require.main === module) {
+  const host = process.env.HOST || '0.0.0.0';
+  app.listen(port, host, () => {
+    console.log(`Backend do Concurso Study Hub rodando na porta ${port}`);
+  });
+}
+
+module.exports = app;

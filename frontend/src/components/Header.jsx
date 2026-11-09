@@ -9,8 +9,11 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
     setProvider(tempProvider);
     setApiKey(tempKey);
     localStorage.setItem('concurso_provider', tempProvider);
-    // Keep keys in memory only; browser storage is not a safe secret store.
-    localStorage.removeItem('concurso_api_key');
+    if (tempKey) {
+      localStorage.setItem('concurso_api_key', tempKey);
+    } else {
+      localStorage.removeItem('concurso_api_key');
+    }
     setIsModalOpen(false);
   };
 

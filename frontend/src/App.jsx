@@ -22,8 +22,10 @@ function App() {
     if (savedProvider) {
       setProvider(savedProvider);
     }
-    // API keys are intentionally session-only and never restored from storage.
-    localStorage.removeItem('concurso_api_key');
+    const savedApiKey = localStorage.getItem('concurso_api_key');
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+    }
 
     const savedEdital = localStorage.getItem('concurso_parsed_edital');
     const savedPlan = localStorage.getItem('concurso_study_plan');

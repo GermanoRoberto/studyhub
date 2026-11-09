@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
 /**
  * Helper para obter os headers com o provider e chave API
