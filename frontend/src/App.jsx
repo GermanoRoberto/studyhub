@@ -12,8 +12,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('studyhub_auth_token'));
   const [authChecking, setAuthChecking] = useState(true);
 
-  const [provider, setProvider] = useState('offline');
-  const [apiKey, setApiKey] = useState('');
+  const [provider, setProvider] = useState(() => localStorage.getItem('concurso_provider') || 'gemini');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('concurso_api_key') || '');
   const [parsedEdital, setParsedEdital] = useState(null);
   const [selectedCargo, setSelectedCargo] = useState('');
   const [studyPlan, setStudyPlan] = useState(null);

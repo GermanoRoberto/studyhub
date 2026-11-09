@@ -27,7 +27,7 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
     if (provider === 'ollama') return 'Ollama (IA Local)';
     if (provider === 'openai') return 'OpenAI (GPT-4o-mini)';
     if (provider === 'groq') return 'Groq (Llama 3.3)';
-    if (apiKey) return 'Conectado (Gemini 1.5)';
+    if (apiKey || provider === 'gemini') return 'Conectado (Google Gemini 2.5)';
     return 'Modo Demonstrativo (Sem Chave)';
   };
 

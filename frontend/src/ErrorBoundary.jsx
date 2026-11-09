@@ -16,7 +16,9 @@ export default class ErrorBoundary extends React.Component {
 
   handleReset = () => {
     try {
-      localStorage.clear();
+      // Remove apenas planos ou editais corrompidos, preservando login do usuário
+      localStorage.removeItem('concurso_study_plan');
+      localStorage.removeItem('concurso_parsed_edital');
       sessionStorage.clear();
     } catch (e) {}
     window.location.reload();

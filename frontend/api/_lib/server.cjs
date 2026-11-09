@@ -19,6 +19,8 @@ const { localSubjectsDb } = require('./localDb.cjs');
 const { localSummariesDb } = require('./localSummariesDb.cjs');
 require('dotenv').config();
 
+const DEFAULT_GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -592,15 +594,25 @@ async function callIA(provider, apiKey, prompt) {
     return JSON.parse(data.choices[0].message.content.trim());
 
   } else {
-    // Gemini API padrão
-    console.log("Chamando Gemini API...");
+    // Gemini API padrão (atualizado para gemini-2.5-flash)
+    console.log("Chamando Gemini API (gemini-2.5-flash)...");
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const response = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json' }
-    });
-    return JSON.parse(response.response.text().trim());
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const response = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+      return JSON.parse(response.response.text().trim());
+    } catch (err) {
+      console.warn("Tentando fallback para gemini-flash-latest:", err.message);
+      const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+      const response = await fallbackModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+      return JSON.parse(response.response.text().trim());
+    }
   }
 }
 
@@ -630,7 +642,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     // Compilação inteligente do Snippet (Head + Tail) para garantir que tabelas de anexos/remunerações no final não sejam cortadas
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     let editalSnippet = editalText;
     if (provider === 'ollama') {
@@ -718,7 +730,7 @@ app.post('/api/generate-dashboard', async (req, res) => {
     }
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     // Se estiver offline ou sem IA, roda o gerador de cronograma local inteligente baseado em palavras-chave
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -776,7 +788,7 @@ app.post('/api/search-dates', async (req, res) => {
     }
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     return res.status(501).json({
       error: 'Automatic date lookup is disabled until an official-search integration is configured.'
@@ -796,7 +808,7 @@ app.post('/api/search-dates', async (req, res) => {
     if (provider === 'gemini') {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         tools: [{ googleSearch: {} }]
       });
       const prompt = `
@@ -838,7 +850,7 @@ app.post('/api/generate-exercises', async (req, res) => {
     }
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     // Se estiver offline ou sem IA, busca as questões reais no banco local do backend
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -916,7 +928,7 @@ app.post('/api/generate-subject-exercises', async (req, res) => {
     }
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
     const limit = numQuestoes || 10;
 
     // Se estiver offline ou sem IA, tenta pegar do localDb e multiplicar/mockar se necessário
@@ -1018,7 +1030,7 @@ app.post('/api/generate-revisional', async (req, res) => {
     }
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     // Se estiver offline ou sem chave, gera o material off-line
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1085,7 +1097,7 @@ app.post('/api/generate-summary', async (req, res) => {
 
     const currentMode = mode || 'explicador';
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     // Se estiver offline ou sem IA, busca nos resumos pré-programados ou gera fallbacks inteligentes
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1436,7 +1448,7 @@ app.post('/api/monitor/upload-print', upload.single('file'), async (req, res) =>
     console.log("OCR Concluído. Comprimento do texto extraído:", extractedText.length);
 
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     // Se estiver offline ou sem chave, faz uma extração heurística básica do texto
     if (provider === 'offline' || (!apiKey && provider !== 'ollama')) {
@@ -1497,7 +1509,7 @@ app.post('/api/monitor/check-update', async (req, res) => {
   try {
     const { concurso, status, banca } = req.body;
     const provider = req.headers['x-provider'] || 'offline';
-    const apiKey = req.headers['x-api-key'] || process.env.GEMINI_API_KEY || '';
+    const apiKey = req.headers['x-api-key'] || DEFAULT_GEMINI_KEY;
 
     console.log(`Buscando atualizações na web para: ${concurso}`);
 
