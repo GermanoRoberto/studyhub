@@ -1,10 +1,39 @@
 const API_BASE = import.meta.env.VITE_API_BASE || '/api';
 
+export const login = async (username, password) => {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Falha na autenticação.');
+  }
+  return data;
+};
+
+export const verifyAuthToken = async (token) => {
+  if (!token) return false;
+  try {
+    const response = await fetch(`${API_BASE}/auth/verify`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    return response.ok;
+  } catch (e) {
+    return false;
+  }
+};
+
 /**
- * Helper para obter os headers com o provider e chave API
+ * Helper para obter os headers com o provider, chave API e token de autenticação
  */
 const getHeaders = (provider, apiKey) => {
   const headers = {};
+  const token = localStorage.getItem('studyhub_auth_token');
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   if (provider) {
     headers['x-provider'] = provider;
   }
@@ -181,5 +210,18 @@ export const checkConcursoUpdate = async (concurso, status, banca, provider, api
     throw new Error(err.error || 'Erro ao buscar atualizações');
   }
 
+  return response.json();
+};
+
+export const getRadarConcursos = async (filters = {}) => {
+  const query = new URLSearchParams();
+  if (filters.area && filters.area !== 'Todas') query.append('area', filters.area);
+  if (filters.escolaridade && filters.escolaridade !== 'Todas') query.append('escolaridade', filters.escolaridade);
+  if (filters.status && filters.status !== 'Todos') query.append('status', filters.status);
+
+  const response = await fetch(`${API_BASE}/concursos/radar?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error('Erro ao carregar radar de concursos');
+  }
   return response.json();
 };

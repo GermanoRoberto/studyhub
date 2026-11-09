@@ -34,6 +34,53 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+const crypto = require('crypto');
+
+// Configuração segura de autenticação pessoal
+const AUTH_USER = process.env.AUTH_USER || 'germanorcarmo';
+// Salt e Hash scrypt de 64 bytes gerados para a senha pessoal (NUNCA texto puro)
+const AUTH_SALT = process.env.AUTH_SALT || '54e60278a790ae488456927d7efbde64';
+const AUTH_HASH = process.env.AUTH_PASS_HASH || 'd949aec8502349b372eed47c20f5ef0193f1485eb8954db8b10f51660e34956aefeb56a789dc09a66b65ad2291132352a6b2429caa7a52854adb09ab75cdcd58';
+const JWT_SECRET = process.env.JWT_SECRET || 'studyhub_secure_session_secret_2026_concursos';
+
+// Brute-force protection: max 5 login attempts per 5 minutes per IP
+const loginAttempts = new Map();
+
+function verifyCredentials(username, password) {
+  if (username !== AUTH_USER) return false;
+  const hash = crypto.scryptSync(password, AUTH_SALT, 64);
+  const storedBuf = Buffer.from(AUTH_HASH, 'hex');
+  if (hash.length !== storedBuf.length) return false;
+  return crypto.timingSafeEqual(hash, storedBuf);
+}
+
+function createSessionToken(username) {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    sub: username,
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60) // 30 dias de sessão
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
+  return `${header}.${payload}.${signature}`;
+}
+
+function verifySessionToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [header, payload, signature] = parts;
+  const expectedSig = crypto.createHmac('sha256', JWT_SECRET).update(`${header}.${payload}`).digest('base64url');
+  if (signature !== expectedSig) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (data.exp && data.exp < Math.floor(Date.now() / 1000)) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
 const rateLimits = new Map();
 app.use('/api', (req, res, next) => {
   const now = Date.now();
@@ -43,8 +90,61 @@ app.use('/api', (req, res, next) => {
     ? { startedAt: now, count: 1 }
     : { ...previous, count: previous.count + 1 };
   rateLimits.set(key, current);
-  if (current.count > 30) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
+  if (current.count > 60) return res.status(429).json({ error: 'Too many requests. Try again shortly.' });
   next();
+});
+
+// ROTAS DE AUTENTICAÇÃO
+app.post('/api/auth/login', (req, res) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const attempts = loginAttempts.get(ip) || { count: 0, firstAttempt: now };
+
+  if (now - attempts.firstAttempt > 300_000) {
+    attempts.count = 0;
+    attempts.firstAttempt = now;
+  }
+
+  if (attempts.count >= 5) {
+    const waitSeconds = Math.ceil((300_000 - (now - attempts.firstAttempt)) / 1000);
+    return res.status(429).json({
+      error: `Muitas tentativas incorretas. Aguarde ${waitSeconds} segundos antes de tentar novamente.`
+    });
+  }
+
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
+  }
+
+  const isValid = verifyCredentials(username.trim(), password);
+  if (!isValid) {
+    attempts.count += 1;
+    loginAttempts.set(ip, attempts);
+    const remaining = 5 - attempts.count;
+    return res.status(401).json({
+      error: `Credenciais inválidas. ${remaining > 0 ? `Tentativas restantes: ${remaining}` : 'Bloqueio ativado temporariamente.'}`
+    });
+  }
+
+  loginAttempts.delete(ip);
+  const token = createSessionToken(username.trim());
+  res.json({
+    success: true,
+    user: username.trim(),
+    token,
+    message: 'Login realizado com sucesso!'
+  });
+});
+
+app.get('/api/auth/verify', (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : req.query.token;
+  const session = verifySessionToken(token);
+  if (!session) {
+    return res.status(401).json({ valid: false, error: 'Sessão inválida ou expirada.' });
+  }
+  res.json({ valid: true, user: session.sub });
 });
 
 // Config Multer para upload em memória
@@ -1436,6 +1536,43 @@ app.post('/api/monitor/check-update', async (req, res) => {
     console.error("Erro ao verificar concurso:", err);
     res.status(500).json({ error: "Erro ao buscar atualizações para o concurso." });
   }
+});
+
+const { concursosCatalog } = require('./concursosData.cjs');
+
+// ROTA: Radar de Concursos 2026/2027 (Referência de portais preparatórios)
+app.get('/api/concursos/radar', (req, res) => {
+  const { area, escolaridade, status } = req.query;
+  let results = [...concursosCatalog];
+
+  if (area && area !== 'Todas') {
+    results = results.filter(c => c.area.toLowerCase() === area.toLowerCase());
+  }
+  if (escolaridade && escolaridade !== 'Todas') {
+    results = results.filter(c => (c.escolaridade || '').toLowerCase().includes(escolaridade.toLowerCase()));
+  }
+  if (status && status !== 'Todos') {
+    results = results.filter(c => (c.status || '').toLowerCase() === status.toLowerCase());
+  }
+
+  res.json({
+    total: results.length,
+    concursos: results,
+    areasDisponiveis: [
+      "Todas",
+      "Militar",
+      "TI",
+      "Policial",
+      "Fiscal",
+      "Tribunais",
+      "Bancária",
+      "Controle",
+      "Educação",
+      "Administrativa",
+      "Saúde"
+    ],
+    updatedAt: new Date().toISOString()
+  });
 });
 
 // ROTA: Listagem de mocks

@@ -1,492 +1,450 @@
-import React, { useState, useEffect } from 'react';
-import { uploadConcursoPrint, checkConcursoUpdate } from '../services/api';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getRadarConcursos, checkConcursoUpdate } from '../services/api';
 
 export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWithMock }) {
-  const [monitoredExams, setMonitoredExams] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [concursos, setConcursos] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [checkingId, setCheckingId] = useState(null);
-  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('radar'); // 'radar' (interesse) | 'explore' (todos) | 'ignored' (dispensados)
+  
+  // Filtros
+  const [selectedArea, setSelectedArea] = useState('Todas');
+  const [selectedEscolaridade, setSelectedEscolaridade] = useState('Todas');
+  const [selectedStatus, setSelectedStatus] = useState('Todos');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // Form states para cadastro manual
-  const [manualConcurso, setManualConcurso] = useState('');
-  const [manualStatus, setManualStatus] = useState('Anunciado');
-  const [manualBanca, setManualBanca] = useState('A definir');
-  const [manualVagas, setManualVagas] = useState('A definir');
-  const [manualSalario, setManualSalario] = useState('A definir');
-  const [manualRequisitos, setManualRequisitos] = useState('A definir');
-  const [manualDetalhes, setManualDetalhes] = useState('');
-
-  // Carrega lista monitorada do localStorage no início
-  useEffect(() => {
-    const saved = localStorage.getItem('concurso_monitored_list');
-    if (saved) {
-      try {
-        setMonitoredExams(JSON.parse(saved));
-      } catch (e) {
-        console.error("Erro ao carregar lista monitorada:", e);
-      }
-    } else {
-      // Seed inicial com concursos famosos em pré-edital
-      const defaultSeed = [
-        {
-          id: 'seed_pf_2026',
-          concurso: 'Polícia Federal (Agente & Escrivão)',
-          status: 'Autorizado',
-          banca: 'A definir',
-          vagas: '500 vagas previstas',
-          salario: 'R$ 13.600,00',
-          requisitos: 'Superior em Qualquer Área',
-          detalhes: 'Rumores apontam autorização presidencial iminente para novos cargos policiais.',
-          lastChecked: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'),
-          logs: ['Monitoramento ativado.']
-        },
-        {
-          id: 'seed_correios_2026',
-          concurso: 'Correios (Carteiro & Atendente)',
-          status: 'Banca Definida',
-          banca: 'IBFC',
-          vagas: '3.200 vagas',
-          salario: 'R$ 2.420,00 + Benefícios',
-          requisitos: 'Ensino Médio',
-          detalhes: 'Banca IBFC contratada oficialmente. Edital previsto para as próximas semanas.',
-          lastChecked: new Date().toLocaleDateString('pt-BR'),
-          logs: ['Banca definida: IBFC.', 'Edital em fase de elaboração final.']
-        }
-      ];
-      setMonitoredExams(defaultSeed);
-      localStorage.setItem('concurso_monitored_list', JSON.stringify(defaultSeed));
+  // Estados de interesse pessoal
+  const [interestedIds, setInterestedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('studyhub_interested_concursos');
+      return saved ? JSON.parse(saved) : ['exercito_espcex_2026', 'bb_ti_2026', 'receita_federal_ti_2026', 'pmdf_oficial_2026'];
+    } catch (e) {
+      return ['exercito_espcex_2026', 'bb_ti_2026'];
     }
+  });
+
+  const [ignoredIds, setIgnoredIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('studyhub_ignored_concursos');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  // Notícias / logs de atualizações consultadas
+  const [examLogs, setExamLogs] = useState({});
+
+  // Carrega catálogo atualizado automaticamente na abertura
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchCatalog() {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getRadarConcursos();
+        if (isMounted) {
+          setConcursos(data.concursos || []);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.warn("Falha ao buscar via API, usando fallback local:", err);
+          // Fallback se estiver offline
+          try {
+            const localData = await import('../../../backend/concursosData.js');
+            setConcursos(localData.concursosCatalog || []);
+          } catch (e) {}
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    fetchCatalog();
+    return () => { isMounted = false; };
   }, []);
 
-  const saveToStorage = (list) => {
-    setMonitoredExams(list);
-    localStorage.setItem('concurso_monitored_list', JSON.stringify(list));
-  };
-
-  const handleFileUpload = async (file) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await uploadConcursoPrint(file, provider, apiKey);
-      const newExam = {
-        id: 'monitor_' + Date.now(),
-        concurso: data.concurso || 'Novo Concurso',
-        status: data.status || 'Anunciado',
-        banca: data.banca || 'A definir',
-        vagas: data.vagas || 'A definir',
-        salario: data.salario || 'A definir',
-        requisitos: data.requisitos || 'A definir',
-        detalhes: data.detalhes || 'Informações extraídas do print.',
-        lastChecked: new Date().toLocaleDateString('pt-BR'),
-        logs: ['Cadastro realizado via OCR de print.']
-      };
-      
-      const updated = [newExam, ...monitoredExams];
-      saveToStorage(updated);
-    } catch (err) {
-      setError(err.message || 'Erro ao processar a imagem. Certifique-se de enviar um arquivo PNG ou JPG válido.');
-    } finally {
-      setLoading(false);
+  // Salva interesses no storage
+  const toggleInterest = (id) => {
+    setInterestedIds(prev => {
+      const exists = prev.includes(id);
+      const updated = exists ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('studyhub_interested_concursos', JSON.stringify(updated));
+      return updated;
+    });
+    // Se estava ignorado, remove do ignorado
+    if (ignoredIds.includes(id)) {
+      setIgnoredIds(prev => {
+        const updated = prev.filter(x => x !== id);
+        localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (!manualConcurso.trim()) return;
-
-    const newExam = {
-      id: 'monitor_' + Date.now(),
-      concurso: manualConcurso,
-      status: manualStatus,
-      banca: manualBanca,
-      vagas: manualVagas,
-      salario: manualSalario,
-      requisitos: manualRequisitos,
-      detalhes: manualDetalhes || 'Cadastro manual efetuado pelo aluno.',
-      lastChecked: new Date().toLocaleDateString('pt-BR'),
-      logs: ['Cadastro manual realizado.']
-    };
-
-    const updated = [newExam, ...monitoredExams];
-    saveToStorage(updated);
-    setIsManualModalOpen(false);
-
-    // Limpa campos
-    setManualConcurso('');
-    setManualStatus('Anunciado');
-    setManualBanca('A definir');
-    setManualVagas('A definir');
-    setManualSalario('A definir');
-    setManualRequisitos('A definir');
-    setManualDetalhes('');
-  };
-
-  const handleDelete = (id) => {
-    const updated = monitoredExams.filter(item => item.id !== id);
-    saveToStorage(updated);
-  };
-
-  const handleCheckUpdate = async (exam) => {
-    setCheckingId(exam.id);
-    try {
-      const data = await checkConcursoUpdate(exam.concurso, exam.status, exam.banca, provider, apiKey);
-      
-      const updated = monitoredExams.map(item => {
-        if (item.id === exam.id) {
-          const logs = [...(item.logs || [])];
-          if (data.novoStatus !== item.status) {
-            logs.unshift(`[${new Date().toLocaleDateString('pt-BR')}] Status alterado para: ${data.novoStatus}`);
-          }
-          logs.unshift(`[${new Date().toLocaleDateString('pt-BR')}] Verificação: ${data.noticia}`);
-          return {
-            ...item,
-            status: data.novoStatus,
-            banca: data.banca,
-            detalhes: data.noticia,
-            lastChecked: new Date().toLocaleDateString('pt-BR'),
-            logs
-          };
-        }
-        return item;
+  const toggleIgnore = (id) => {
+    setIgnoredIds(prev => {
+      const exists = prev.includes(id);
+      const updated = exists ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(updated));
+      return updated;
+    });
+    // Se estava nos favoritos, remove
+    if (interestedIds.includes(id)) {
+      setInterestedIds(prev => {
+        const updated = prev.filter(x => x !== id);
+        localStorage.setItem('studyhub_interested_concursos', JSON.stringify(updated));
+        return updated;
       });
-      saveToStorage(updated);
-      if (data.atualizado) {
-        alert(`📢 Novidade sobre o concurso do ${exam.concurso}!\nStatus atual: ${data.novoStatus}\n${data.noticia}`);
-      } else {
-        alert(`Sem novidades para o concurso do ${exam.concurso}.`);
-      }
+    }
+  };
+
+  // Checagem de atualizações com IA
+  const handleCheckUpdate = async (item) => {
+    setCheckingId(item.id);
+    try {
+      const res = await checkConcursoUpdate(item.orgao, item.status, item.banca, provider, apiKey);
+      setExamLogs(prev => ({
+        ...prev,
+        [item.id]: {
+          timestamp: new Date().toLocaleDateString('pt-BR'),
+          mudanca: res.mudancaDetectada,
+          detalhes: res.detalhes
+        }
+      }));
     } catch (err) {
-      console.error(err);
-      alert('Erro ao buscar atualizações na web.');
+      alert("Não foi possível verificar atualizações agora. Verifique a chave ou modo IA.");
     } finally {
       setCheckingId(null);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Anunciado': return '#3498db';
-      case 'Autorizado': return '#1abc9c';
-      case 'Comissão Formada': return '#9b59b6';
-      case 'Banca Definida': return '#e67e22';
-      case 'Edital Publicado!': return '#2ecc71';
-      default: return 'var(--text-muted)';
-    }
-  };
+  // Áreas disponíveis para filtro
+  const areas = [
+    { label: 'Todas as Áreas', value: 'Todas', icon: '🌐' },
+    { label: 'Militar & Forças Armadas', value: 'Militar', icon: '⚔️' },
+    { label: 'Tecnologia da Informação', value: 'TI', icon: '💻' },
+    { label: 'Policial & Segurança', value: 'Policial', icon: '👮' },
+    { label: 'Fiscal & Tributária', value: 'Fiscal', icon: '💰' },
+    { label: 'Tribunais & Jurídica', value: 'Tribunais', icon: '⚖️' },
+    { label: 'Bancária & Financeira', value: 'Bancária', icon: '🏛️' },
+    { label: 'Controle & Auditoria', value: 'Controle', icon: '📊' },
+    { label: 'Educação', value: 'Educação', icon: '🎓' },
+    { label: 'Administrativa', value: 'Administrativa', icon: '🏢' },
+    { label: 'Saúde', value: 'Saúde', icon: '🏥' }
+  ];
+
+  // Filtra a lista
+  const filteredConcursos = useMemo(() => {
+    return concursos.filter(item => {
+      // Filtro de aba
+      const isInterested = interestedIds.includes(item.id);
+      const isIgnored = ignoredIds.includes(item.id);
+
+      if (activeTab === 'radar' && !isInterested) return false;
+      if (activeTab === 'ignored' && !isIgnored) return false;
+      if (activeTab === 'explore' && isIgnored) return false;
+
+      // Filtro de Área
+      if (selectedArea !== 'Todas' && item.area !== selectedArea) return false;
+
+      // Filtro de Escolaridade
+      if (selectedEscolaridade !== 'Todas' && !(item.escolaridade || '').toLowerCase().includes(selectedEscolaridade.toLowerCase())) {
+        return false;
+      }
+
+      // Filtro de Status
+      if (selectedStatus !== 'Todos' && (item.status || '').toLowerCase() !== selectedStatus.toLowerCase()) {
+        return false;
+      }
+
+      // Busca por texto
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matches = 
+          (item.orgao || '').toLowerCase().includes(term) ||
+          (item.cargo || '').toLowerCase().includes(term) ||
+          (item.banca || '').toLowerCase().includes(term) ||
+          (item.uf || '').toLowerCase().includes(term) ||
+          (item.subarea || '').toLowerCase().includes(term);
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [concursos, activeTab, interestedIds, ignoredIds, selectedArea, selectedEscolaridade, selectedStatus, searchTerm]);
+
+  // Contadores
+  const totalInterested = concursos.filter(c => interestedIds.includes(c.id)).length;
+  const totalIgnored = concursos.filter(c => ignoredIds.includes(c.id)).length;
+  const totalExplore = concursos.filter(c => !ignoredIds.includes(c.id)).length;
 
   return (
-    <div className="radar-monitor animate-fade-in" style={{ padding: '0 0 40px' }}>
-      
-      {/* SEÇÃO HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-main)' }}>📡 Radar de Editais (Pré-Edital)</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>
-            Monitore concursos anunciados. Mande prints de notícias ou cadastros para que o robô faça varreduras semanais por novidades.
+    <div className="radar-monitor animate-fade-in">
+      {/* CABEÇALHO DO RADAR */}
+      <div className="radar-header glass-card">
+        <div className="radar-header-info">
+          <div className="radar-badge">
+            <span className="live-dot pulse"></span>
+            <span>MONITORAMENTO ATIVO 2026/2027</span>
+          </div>
+          <h2>Radar de Editais & Concursos Públicos</h2>
+          <p>
+            Atualizações automáticas baseadas nos maiores portais de concursos do Brasil (Gran Cursos, Diários Oficiais e Editais).
+            Selecione suas carreiras de interesse para focar sua preparação.
           </p>
         </div>
-        <button 
-          className="api-key-btn" 
-          onClick={() => setIsManualModalOpen(true)}
-          style={{ background: 'var(--accent-purple)', borderColor: 'var(--accent-purple)', color: 'white' }}
+
+        {/* CONTADORES EM MINI CARDS */}
+        <div className="radar-stat-cards">
+          <div className={`radar-stat-box ${activeTab === 'radar' ? 'active' : ''}`} onClick={() => setActiveTab('radar')}>
+            <span className="stat-label">⭐ No Meu Radar</span>
+            <span className="stat-num text-cyan">{totalInterested}</span>
+          </div>
+          <div className={`radar-stat-box ${activeTab === 'explore' ? 'active' : ''}`} onClick={() => setActiveTab('explore')}>
+            <span className="stat-label">🌐 Total Disponível</span>
+            <span className="stat-num text-purple">{totalExplore}</span>
+          </div>
+          <div className={`radar-stat-box ${activeTab === 'ignored' ? 'active' : ''}`} onClick={() => setActiveTab('ignored')}>
+            <span className="stat-label">🚫 Dispensados</span>
+            <span className="stat-num text-muted">{totalIgnored}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ABAS DE NAVEGAÇÃO PRINCIPAL */}
+      <div className="radar-tab-bar">
+        <button
+          className={`radar-tab-btn ${activeTab === 'radar' ? 'active' : ''}`}
+          onClick={() => setActiveTab('radar')}
         >
-          ➕ Cadastrar Manualmente
+          ⭐ Concursos de Meu Interesse ({totalInterested})
+        </button>
+        <button
+          className={`radar-tab-btn ${activeTab === 'explore' ? 'active' : ''}`}
+          onClick={() => setActiveTab('explore')}
+        >
+          🔍 Explorar Todos os Concursos ({totalExplore})
+        </button>
+        <button
+          className={`radar-tab-btn ${activeTab === 'ignored' ? 'active' : ''}`}
+          onClick={() => setActiveTab('ignored')}
+        >
+          🚫 Dispensados ({totalIgnored})
         </button>
       </div>
 
-      {/* ÁREA DE UPLOAD DE PRINTS */}
-      <div 
-        className="upload-container"
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const file = e.dataTransfer.files[0];
-          if (file) handleFileUpload(file);
-        }}
-        onClick={() => document.getElementById('radar-file-input').click()}
-        style={{
-          border: '2px dashed var(--accent-purple)',
-          background: 'rgba(155, 89, 182, 0.03)',
-          cursor: 'pointer',
-          padding: '30px',
-          borderRadius: 'var(--border-radius-lg)',
-          textAlign: 'center',
-          transition: 'var(--transition-smooth)',
-          marginBottom: '32px'
-        }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(155, 89, 182, 0.08)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(155, 89, 182, 0.03)'}
-      >
-        <div style={{ fontSize: '32px', marginBottom: '8px' }}>📸</div>
-        <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>
-          Arraste e solte o print da notícia/Diário Oficial aqui
-        </h3>
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '500px', margin: '0 auto 12px' }}>
-          O sistema usará OCR (reconhecimento de imagem) para extrair o nome do órgão e banca e cadastrará o monitoramento.
-        </p>
-        <input 
-          id="radar-file-input"
-          type="file" 
-          accept="image/*"
-          style={{ display: 'none' }} 
-          onChange={(e) => {
-            const file = e.target.files[0];
-            if (file) handleFileUpload(file);
-          }}
-        />
-        <button className="upload-btn" style={{ background: 'var(--accent-purple)', color: 'white', border: 'none' }}>
-          Selecionar Imagem
-        </button>
-      </div>
-
-      {loading && (
-        <div className="loading-overlay" style={{ margin: '-16px 0 24px' }}>
-          <div className="spinner" style={{ borderTopColor: 'var(--accent-purple)' }}></div>
-          <p style={{ fontWeight: '500' }}>Processando imagem e extraindo textos...</p>
+      {/* PAINEL DE FILTRAGEM POR ÁREA / CARREIRA */}
+      <div className="radar-filters-container glass-card">
+        <div className="filter-section-title">
+          <span>🎯 Filtrar por Carreira / Tipo de Trabalho:</span>
         </div>
-      )}
-
-      {error && (
-        <div style={{ color: 'var(--accent-red)', textAlign: 'center', marginBottom: '24px', fontSize: '14px' }}>
-          ⚠️ {error}
-        </div>
-      )}
-
-      {/* GRID DE CONCURSOS MONITORADOS */}
-      <h4 style={{ color: 'var(--text-main)', fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
-        🔍 Editais sob Vigilância ({monitoredExams.length})
-      </h4>
-
-      {monitoredExams.length === 0 ? (
-        <div className="glass-card" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          <p>Nenhum edital sob vigilância ainda. Envie um print de edital acima ou cadastre um manualmente!</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
-          {monitoredExams.map((exam) => (
-            <div 
-              key={exam.id} 
-              className="glass-card animate-fade-in" 
-              style={{ 
-                padding: '24px', 
-                border: exam.status === 'Edital Publicado!' ? '1px solid rgba(46, 204, 113, 0.4)' : '1px solid var(--border-glass)',
-                boxShadow: exam.status === 'Edital Publicado!' ? '0 0 16px rgba(46, 204, 113, 0.15)' : 'none'
-              }}
+        <div className="area-chips-scroll">
+          {areas.map(a => (
+            <button
+              key={a.value}
+              className={`area-chip ${selectedArea === a.value ? 'active' : ''}`}
+              onClick={() => setSelectedArea(a.value)}
             >
-              {/* HEADER DO CARD */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                <h4 style={{ color: 'var(--text-main)', fontWeight: 'bold', fontSize: '16px', lineHeight: '1.3' }}>
-                  {exam.concurso}
-                </h4>
-                <button 
-                  onClick={() => handleDelete(exam.id)}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
-                  title="Remover monitoramento"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* BADGE DE STATUS */}
-              <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span 
-                  style={{
-                    background: getStatusColor(exam.status) + '15',
-                    color: getStatusColor(exam.status),
-                    border: `1px solid ${getStatusColor(exam.status)}40`,
-                    padding: '3px 10px',
-                    borderRadius: '20px',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase'
-                  }}
-                >
-                  {exam.status}
-                </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Banca: <strong>{exam.banca}</strong>
-                </span>
-              </div>
-
-              {/* DETALHES DE FICHA TÉCNICA PREVISTA */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                <div>
-                  <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Vagas Previstas:</span>
-                  <p style={{ color: 'var(--text-main)', marginTop: '2px', fontWeight: '500' }}>{exam.vagas}</p>
-                </div>
-                <div>
-                  <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Remuneração:</span>
-                  <p style={{ color: 'var(--text-main)', marginTop: '2px', fontWeight: '500' }}>{exam.salario}</p>
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)' }}>Requisitos:</span>
-                  <p style={{ color: 'var(--text-main)', marginTop: '2px', fontWeight: '500' }}>{exam.requisitos}</p>
-                </div>
-              </div>
-
-              {/* ÚLTIMA NOTÍCIA EXTRAÍDA */}
-              <div style={{ marginTop: '14px', background: 'rgba(255, 255, 255, 0.02)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                <span style={{ fontSize: '10px', color: 'var(--accent-purple)', fontWeight: 'bold' }}>📡 Último Status:</span>
-                <p style={{ fontSize: '12px', color: 'var(--text-main)', marginTop: '4px', lineHeight: '1.4' }}>
-                  {exam.detalhes}
-                </p>
-              </div>
-
-              {/* BOTÕES DE CONTROLE DO CARD */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-                <button 
-                  className="sync-btn"
-                  onClick={() => handleCheckUpdate(exam)}
-                  disabled={checkingId === exam.id}
-                  style={{ flex: 1, margin: 0, padding: '8px 12px', fontSize: '12px' }}
-                >
-                  {checkingId === exam.id ? 'Buscando...' : '🔄 Rastrear Notícias'}
-                </button>
-
-                {exam.status === 'Edital Publicado!' && (
-                  <button 
-                    onClick={() => {
-                      setView('upload');
-                      setTimeout(() => {
-                        alert("Por favor, faça o upload do PDF oficial do edital no painel principal para gerar seu planejamento de estudos!");
-                      }, 200);
-                    }}
-                    style={{
-                      flex: 1.2,
-                      background: 'var(--accent-green)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      boxShadow: '0 0 10px rgba(46, 204, 113, 0.3)',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    📥 Iniciar Planejamento
-                  </button>
-                )}
-              </div>
-
-              {/* HISTÓRICO DE LOGS DE RASTREAMENTO */}
-              {exam.logs && exam.logs.length > 0 && (
-                <div style={{ marginTop: '12px', fontSize: '10px', color: 'var(--text-muted)', maxHeight: '60px', overflowY: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                  <span style={{ textTransform: 'uppercase', fontSize: '9px', fontWeight: 'bold' }}>Histórico do Robô:</span>
-                  <ul style={{ listStyle: 'none', padding: 0, margin: '4px 0 0 0' }}>
-                    {exam.logs.slice(0, 3).map((log, lIdx) => (
-                      <li key={lIdx} style={{ marginBottom: '2px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {log}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
+              <span className="chip-icon">{a.icon}</span>
+              <span>{a.label}</span>
+            </button>
           ))}
         </div>
+
+        {/* SUB-FILTROS: ESCOLARIDADE, STATUS E BUSCA */}
+        <div className="sub-filters-row">
+          <div className="search-input-box">
+            <span className="search-icon">🔎</span>
+            <input
+              type="text"
+              className="radar-search-input"
+              placeholder="Buscar órgão, cargo, banca ou estado (ex: Exército, TI, DF)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button className="clear-search-btn" onClick={() => setSearchTerm('')}>×</button>
+            )}
+          </div>
+
+          <div className="select-filters-group">
+            <div className="filter-select-wrap">
+              <label>Escolaridade:</label>
+              <select
+                className="radar-select"
+                value={selectedEscolaridade}
+                onChange={(e) => setSelectedEscolaridade(e.target.value)}
+              >
+                <option value="Todas">Todas as Escolaridades</option>
+                <option value="Médio">Nível Médio</option>
+                <option value="Técnico">Nível Técnico</option>
+                <option value="Superior">Nível Superior</option>
+              </select>
+            </div>
+
+            <div className="filter-select-wrap">
+              <label>Status do Edital:</label>
+              <select
+                className="radar-select"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <option value="Todos">Todos os Status</option>
+                <option value="Edital Publicado">🔥 Edital Publicado</option>
+                <option value="Banca Definida">⚡ Banca Definida</option>
+                <option value="Banca em Definição">⏳ Banca em Definição</option>
+                <option value="Comissão Formada">📝 Comissão Formada</option>
+                <option value="Autorizado">✅ Autorizado</option>
+                <option value="Previsto">🔮 Previsto / Anunciado</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* FEEDBACK DE CARREGAMENTO OU ERRO */}
+      {loading && (
+        <div className="loading-state glass-card">
+          <div className="spinner"></div>
+          <p>Sincronizando editais e concursos mais recentes do Brasil...</p>
+        </div>
       )}
 
-      {/* MODAL DE CADASTRO MANUAL */}
-      {isManualModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-card animate-fade-in" style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <h3 className="modal-title">Monitorar Novo Concurso</h3>
-              <button className="close-modal-btn" onClick={() => setIsManualModalOpen(false)}>×</button>
+      {/* LISTA DE CONCURSOS FILTRADOS */}
+      {!loading && (
+        <div className="radar-cards-grid">
+          {filteredConcursos.length === 0 ? (
+            <div className="empty-radar glass-card">
+              <div className="empty-icon">{activeTab === 'radar' ? '⭐' : '🔎'}</div>
+              <h3>Nenhum concurso encontrado</h3>
+              <p>
+                {activeTab === 'radar'
+                  ? 'Você ainda não favoritou concursos nesta categoria. Vá na aba "Explorar Todos os Concursos" e clique em "⭐ Tenho Interesse"!'
+                  : 'Tente ajustar os filtros de carreira ou o termo de pesquisa.'}
+              </p>
+              {activeTab === 'radar' && (
+                <button className="btn-primary" onClick={() => setActiveTab('explore')}>
+                  Explorar Concursos Agora →
+                </button>
+              )}
             </div>
-            <form onSubmit={handleManualSubmit} className="modal-body">
-              <div className="input-group">
-                <label>Órgão / Nome do Concurso:</label>
-                <input 
-                  type="text" 
-                  className="text-input" 
-                  placeholder="Ex: Polícia Federal, TJ-SP, Correios..."
-                  value={manualConcurso} 
-                  onChange={(e) => setManualConcurso(e.target.value)}
-                  required
-                />
-              </div>
+          ) : (
+            filteredConcursos.map(item => {
+              const isInterested = interestedIds.includes(item.id);
+              const isIgnored = ignoredIds.includes(item.id);
+              const log = examLogs[item.id];
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="input-group">
-                  <label>Status Atual:</label>
-                  <select 
-                    className="text-input" 
-                    value={manualStatus} 
-                    onChange={(e) => setManualStatus(e.target.value)}
-                  >
-                    <option value="Anunciado">Anunciado</option>
-                    <option value="Autorizado">Autorizado</option>
-                    <option value="Comissão Formada">Comissão Formada</option>
-                    <option value="Banca Definida">Banca Definida</option>
-                    <option value="Edital Publicado!">Edital Publicado!</option>
-                  </select>
+              return (
+                <div key={item.id} className={`radar-exam-card glass-card ${isInterested ? 'starred-card' : ''}`}>
+                  {/* TOPO DO CARD */}
+                  <div className="card-top-row">
+                    <div className="area-badge-tag">
+                      <span className="area-pill">{item.area}</span>
+                      {item.subarea && <span className="subarea-text">• {item.subarea}</span>}
+                    </div>
+
+                    <div className="card-status-badge">
+                      <span className={`status-pill status-${(item.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                        {item.status === 'Edital Publicado' ? '🔥 Edital Publicado' : item.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* TÍTULO E CARGO */}
+                  <div className="card-body-section">
+                    <div className="uf-indicator">{item.uf}</div>
+                    <h3 className="exam-card-title">{item.orgao}</h3>
+                    <div className="exam-card-role">
+                      <strong>Cargo(s):</strong> {item.cargo}
+                    </div>
+                  </div>
+
+                  {/* DETALHES RÁPIDOS (VAGAS, REMUNERAÇÃO, BANCA) */}
+                  <div className="exam-details-chips">
+                    <div className="chip-info">
+                      <span className="chip-k">💰 Salário:</span>
+                      <span className="chip-v text-highlight">{item.remuneracao || 'A consultar'}</span>
+                    </div>
+                    <div className="chip-info">
+                      <span className="chip-k">👥 Vagas:</span>
+                      <span className="chip-v">{item.vagas || 'A definir'}</span>
+                    </div>
+                    <div className="chip-info">
+                      <span className="chip-k">🏢 Banca:</span>
+                      <span className="chip-v">{item.banca || 'A definir'}</span>
+                    </div>
+                    <div className="chip-info">
+                      <span className="chip-k">🎓 Nível:</span>
+                      <span className="chip-v">{item.escolaridade || 'Médio/Superior'}</span>
+                    </div>
+                  </div>
+
+                  {item.detalhes && (
+                    <p className="card-notes-text">
+                      {item.detalhes}
+                    </p>
+                  )}
+
+                  {log && (
+                    <div className="update-log-box animate-fade-in">
+                      <div className="log-time">📅 Atualizado em: {log.timestamp}</div>
+                      <div className="log-msg">
+                        {log.mudanca ? '🚨 Novidade:' : 'ℹ️'} {log.detalhes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AÇÕES NO CARD */}
+                  <div className="card-actions-footer">
+                    <button
+                      className={`interest-btn ${isInterested ? 'is-interested' : ''}`}
+                      onClick={() => toggleInterest(item.id)}
+                      title={isInterested ? 'Remover dos favoritos' : 'Adicionar aos meus concursos'}
+                    >
+                      {isInterested ? '⭐ No Meu Radar' : '☆ Tenho Interesse'}
+                    </button>
+
+                    <button
+                      className={`ignore-btn ${isIgnored ? 'is-ignored' : ''}`}
+                      onClick={() => toggleIgnore(item.id)}
+                      title={isIgnored ? 'Reativar concurso' : 'Dispensar este concurso'}
+                    >
+                      {isIgnored ? '↩️ Reativar' : '🚫 Não me Interessa'}
+                    </button>
+
+                    <button
+                      className="check-ia-btn"
+                      onClick={() => handleCheckUpdate(item)}
+                      disabled={checkingId === item.id}
+                      title="Consultar se há novas movimentações no órgão"
+                    >
+                      {checkingId === item.id ? '⏳ Verificando...' : '🔄 Atualização'}
+                    </button>
+
+                    {onInitPlanWithMock && (
+                      <button
+                        className="prepare-btn"
+                        onClick={() => {
+                          onInitPlanWithMock({
+                            cargo: item.cargo,
+                            concurso: item.orgao,
+                            banca: item.banca,
+                            vagas: item.vagas,
+                            salario: item.remuneracao
+                          });
+                          setView('dashboard');
+                        }}
+                        title="Abrir área de estudo e cronograma para este cargo"
+                      >
+                        🚀 Estudar Agora
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="input-group">
-                  <label>Banca Organizadora:</label>
-                  <input 
-                    type="text" 
-                    className="text-input" 
-                    placeholder="Ex: FGV, Vunesp, Cebraspe..." 
-                    value={manualBanca} 
-                    onChange={(e) => setManualBanca(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div className="input-group">
-                  <label>Vagas Previstas:</label>
-                  <input 
-                    type="text" 
-                    className="text-input" 
-                    placeholder="Ex: 50 vagas, CR..." 
-                    value={manualVagas} 
-                    onChange={(e) => setManualVagas(e.target.value)}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Salário Estimado:</label>
-                  <input 
-                    type="text" 
-                    className="text-input" 
-                    placeholder="Ex: R$ 8.500,00..." 
-                    value={manualSalario} 
-                    onChange={(e) => setManualSalario(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label>Requisitos / Escolaridade:</label>
-                <input 
-                  type="text" 
-                  className="text-input" 
-                  placeholder="Ex: Nível Superior em TI, Médio Completo..." 
-                  value={manualRequisitos} 
-                  onChange={(e) => setManualRequisitos(e.target.value)}
-                />
-              </div>
-
-              <div className="input-group">
-                <label>Notas / Últimas Notícias (Detalhes):</label>
-                <textarea 
-                  className="text-input" 
-                  rows="3" 
-                  placeholder="Adicione informações adicionais do concurso ou links de notícias..."
-                  value={manualDetalhes} 
-                  onChange={(e) => setManualDetalhes(e.target.value)}
-                  style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                />
-              </div>
-
-              <button type="submit" className="save-modal-btn" style={{ background: 'var(--accent-purple)' }}>
-                Rastrear Concurso
-              </button>
-            </form>
-          </div>
+              );
+            })
+          )}
         </div>
       )}
     </div>

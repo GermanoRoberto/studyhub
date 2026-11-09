@@ -3,10 +3,15 @@ import Header from './components/Header';
 import UploadPanel from './components/UploadPanel';
 import Dashboard from './components/Dashboard';
 import RadarMonitor from './components/RadarMonitor';
-import { generateDashboard } from './services/api';
+import Login from './components/Login';
+import { generateDashboard, verifyAuthToken } from './services/api';
 import './App.css';
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(() => localStorage.getItem('studyhub_auth_user'));
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('studyhub_auth_token'));
+  const [authChecking, setAuthChecking] = useState(true);
+
   const [provider, setProvider] = useState('offline');
   const [apiKey, setApiKey] = useState('');
   const [parsedEdital, setParsedEdital] = useState(null);
@@ -14,10 +19,28 @@ function App() {
   const [studyPlan, setStudyPlan] = useState(null);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [uploadedEditais, setUploadedEditais] = useState([]);
-  const [view, setView] = useState('upload'); // 'upload' | 'dashboard'
+  const [view, setView] = useState('radar'); // Inicia no radar de concursos ou upload
 
   // Carrega configurações e estado salvo do localStorage
   useEffect(() => {
+    // Validação silenciosa do token de autenticação
+    const token = localStorage.getItem('studyhub_auth_token');
+    if (token) {
+      verifyAuthToken(token).then(valid => {
+        if (!valid) {
+          localStorage.removeItem('studyhub_auth_token');
+          localStorage.removeItem('studyhub_auth_user');
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        } else {
+          setIsAuthenticated(true);
+        }
+        setAuthChecking(false);
+      }).catch(() => setAuthChecking(false));
+    } else {
+      setAuthChecking(false);
+    }
+
     const savedProvider = localStorage.getItem('concurso_provider');
     if (savedProvider) {
       setProvider(savedProvider);
@@ -197,10 +220,64 @@ function App() {
     return studyPlan.concurso.toLowerCase().replace(/[^a-z0-9]/g, '_');
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('studyhub_auth_token');
+    localStorage.removeItem('studyhub_auth_user');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+  };
+
+  const handleInitPlanFromRadar = (item) => {
+    const newPlan = {
+      concurso: item.concurso || item.orgao || 'Concurso Selecionado',
+      cargo: item.cargo || 'Cargo',
+      banca: item.banca || 'A definir',
+      cargoDetails: {
+        nome: item.cargo || 'Cargo',
+        vagas: item.vagas || 'A consultar',
+        salario: item.salario || 'A consultar',
+        requisitos: 'Conforme edital',
+        locais_prova: 'Consultar edital',
+        taf: (item.area === 'Policial' || item.area === 'Militar') ? 'Exigido' : 'Não exigido'
+      },
+      materias: [
+        { nome: 'Língua Portuguesa', topicos: ['Compreensão e interpretação de textos', 'Ortografia e acentuação', 'Crase', 'Concordância verbal e nominal', 'Pontuação'] },
+        { nome: 'Raciocínio Lógico e Matemática', topicos: ['Estruturas lógicas', 'Lógica de argumentação', 'Porcentagem e frações', 'Probabilidade e análise combinatória'] },
+        { nome: 'Direito Administrativo', topicos: ['Princípios da Administração Pública', 'Atos administrativos', 'Poderes administrativos', 'Licitações e contratos'] },
+        { nome: 'Direito Constitucional', topicos: ['Direitos e deveres individuais (Art. 5º)', 'Direitos sociais', 'Organização dos poderes', 'Administração Pública (Arts. 37 a 41)'] }
+      ]
+    };
+    updateStudyPlan(newPlan);
+    setView('dashboard');
+  };
+
   // Handler ao clicar no logo (apenas navega para a home, sem deletar nada!)
   const handleLogoClick = () => {
-    setView('upload');
+    setView('radar');
   };
+
+  // Se estiver checando autenticação inicial
+  if (authChecking) {
+    return (
+      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  // Se não estiver logado, exibe a tela de login segura
+  if (!isAuthenticated) {
+    return (
+      <div className="app-container" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Login
+          onLoginSuccess={(user) => {
+            setCurrentUser(user);
+            setIsAuthenticated(true);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -214,6 +291,8 @@ function App() {
         onLogoClick={handleLogoClick}
         currentView={view}
         setView={setView}
+        currentUser={currentUser}
+        onLogout={handleLogout}
       />
 
       <main style={{ flex: 1 }}>
@@ -235,6 +314,7 @@ function App() {
             provider={provider}
             apiKey={apiKey}
             setView={setView}
+            onInitPlanWithMock={handleInitPlanFromRadar}
           />
         ) : (
           <UploadPanel 
@@ -251,7 +331,7 @@ function App() {
       </main>
 
       <footer style={{ marginTop: '48px', padding: '24px 0', borderTop: '1px solid var(--border-glass)', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-        <p>Concurso Study Hub &copy; 2026. Desenvolvido com inteligência artificial para otimização de aprovações.</p>
+        <p>Concurso Study Hub &copy; 2026 • Painel Pessoal de Alta Performance para Concursos Públicos</p>
       </footer>
     </div>
   );

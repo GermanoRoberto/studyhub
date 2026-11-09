@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function Header({ provider, setProvider, apiKey, setApiKey, activeConcurso, onReset, onLogoClick, currentView, setView }) {
+export default function Header({ provider, setProvider, apiKey, setApiKey, activeConcurso, onReset, onLogoClick, currentView, setView, currentUser, onLogout }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [tempProvider, setTempProvider] = useState(provider || 'offline');
   const [tempKey, setTempKey] = useState(apiKey || '');
@@ -92,6 +92,16 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
           <button className="reset-btn" onClick={onReset}>
             📂 Novo Edital
           </button>
+        )}
+
+        {currentUser && (
+          <div className="user-profile-badge">
+            <span className="user-avatar-icon">👤</span>
+            <span className="user-name-text">{currentUser}</span>
+            <button className="user-logout-btn" onClick={onLogout} title="Sair da conta">
+              🚪 Sair
+            </button>
+          </div>
         )}
       </div>
 
