@@ -899,42 +899,32 @@ app.post('/api/generate-dashboard', async (req, res) => {
       return res.json(dashboard);
     }
 
-    // 2. Extração cirúrgica do conteúdo programático (reduz ~90% a 95% do tamanho do texto)
+    // 2. Extração cirúrgica do conteúdo programático (reduz ~90% a 95% do tamanho do texto sem perder conteúdo de prova)
     const syllabusSnippet = extractSyllabusSection(editalText, cargo);
 
-    // 3. Tenta extração determinística direta do edital (se o edital já enumera tópicos claramente)
-    const deterministicSubjects = tryDeterministicSubjects(syllabusSnippet);
-    if (deterministicSubjects.length >= 3) {
-      console.log(`[Parser Determinístico] ${deterministicSubjects.length} matérias mapeadas diretamente do edital sem gastar tokens de IA.`);
-      const cronograma = buildWeeklySchedule(deterministicSubjects);
-      const plan = { cargo, materias: deterministicSubjects, cronograma, source: 'optimized_extractor' };
-      planCache.set(cacheKey, plan);
-      return res.json(plan);
-    }
-
-    // 4. Chamada ultra otimizada à IA com trecho cirúrgico conciso de apenas 4k-7k chars (em vez de 80.000 chars)
+    // 3. Chamada de alta precisão com IA: garante fidelidade total às disciplinas e legislações do edital
     const prompt = `
-      Com base no seguinte extrato de conteúdo programático do edital para o cargo "${cargo}", estruture o plano de estudos.
-      Retorne em formato JSON a lista de matérias (máximo 5 tópicos por matéria) e monte um cronograma semanal equilibrado (Segunda a Domingo).
+      Com base no seguinte extrato de conteúdo programático do edital para o cargo "${cargo}", estruture o plano de estudos com máxima precisão e fidelidade.
+      IMPORTANTE: Não omita disciplinas, tópicos ou legislações específicas mencionadas para o cargo. Extraia com rigor todos os tópicos e monte um cronograma semanal equilibrado (Segunda a Domingo).
       
       JSON estrito:
       {
         "cargo": "${cargo}",
         "materias": [
           {
-            "nome": "Nome da Matéria",
-            "topicos": ["Tópico 1", "Tópico 2"]
+            "nome": "Nome da Disciplina",
+            "topicos": ["Tópico 1", "Tópico 2", "Legislação aplicável"]
           }
         ],
         "cronograma": [
           {
             "dia": "Segunda-feira",
-            "materias": ["Nome da Matéria"]
+            "materias": ["Nome da Disciplina"]
           }
         ]
       }
 
-      Conteúdo Programático:
+      Conteúdo Programático Oficial:
       ${syllabusSnippet}
     `;
 
@@ -947,8 +937,14 @@ app.post('/api/generate-dashboard', async (req, res) => {
     return res.json(result);
 
   } catch (error) {
-    console.error("Erro ao gerar dashboard:", error);
-    // Fallback de segurança para evitar erro na tela
+    console.error("Erro na extração por IA, aplicando fallback heurístico:", error);
+    // Fallback determinístico caso a IA falhe ou atinja cota
+    const syllabusSnippet = extractSyllabusSection(editalText, cargo);
+    const deterministicSubjects = tryDeterministicSubjects(syllabusSnippet);
+    if (deterministicSubjects.length >= 3) {
+      const cronograma = buildWeeklySchedule(deterministicSubjects);
+      return res.json({ cargo, materias: deterministicSubjects, cronograma, source: 'fallback_extractor' });
+    }
     const fallback = runLocalHeuristicDashboard(cargo, editalText);
     res.json(fallback);
   }

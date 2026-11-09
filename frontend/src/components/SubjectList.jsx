@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import TopicStudyPage from './TopicStudyPage';
 import SubjectStudySimulator from './SubjectStudySimulator';
 
-export default function SubjectList({ materias, cargo, concursoKey, provider, apiKey, banca }) {
+export default function SubjectList({ materias, cargo, concursoKey, provider, apiKey, banca, studyPlan, onUpdatePlan }) {
   const [progress, setProgress] = useState({});
   const [openSubject, setOpenSubject] = useState(0);
   const [activeStudyTopic, setActiveStudyTopic] = useState(null); // { subjectIndex, topicIndex, subjectName, topicName }
   const [activeSubjectSimulado, setActiveSubjectSimulado] = useState(null); // { subjectIndex, subjectName }
+  const [newTopicTexts, setNewTopicTexts] = useState({});
+  const [newSubjectText, setNewSubjectText] = useState('');
+  const [showAddSubject, setShowAddSubject] = useState(false);
 
   // Carrega progresso salvo no localStorage
   useEffect(() => {
@@ -48,6 +51,65 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
 
   const handleStartSubjectSimulado = (subjectIndex, subjectName) => {
     setActiveSubjectSimulado({ subjectIndex, subjectName });
+  };
+
+  const handleAddTopic = (subjectIndex) => {
+    const text = (newTopicTexts[subjectIndex] || '').trim();
+    if (!text || !studyPlan || !onUpdatePlan) return;
+
+    const updatedMaterias = materias.map((m, idx) => {
+      if (idx === subjectIndex) {
+        return {
+          ...m,
+          topicos: [...(m.topicos || []), text]
+        };
+      }
+      return m;
+    });
+
+    const updatedPlan = {
+      ...studyPlan,
+      materias: updatedMaterias
+    };
+    onUpdatePlan(updatedPlan);
+    setNewTopicTexts(prev => ({ ...prev, [subjectIndex]: '' }));
+  };
+
+  const handleRemoveTopic = (subjectIndex, topicIndex) => {
+    if (!studyPlan || !onUpdatePlan) return;
+    const updatedMaterias = materias.map((m, idx) => {
+      if (idx === subjectIndex) {
+        return {
+          ...m,
+          topicos: m.topicos.filter((_, tIdx) => tIdx !== topicIndex)
+        };
+      }
+      return m;
+    });
+
+    const updatedPlan = {
+      ...studyPlan,
+      materias: updatedMaterias
+    };
+    onUpdatePlan(updatedPlan);
+  };
+
+  const handleAddSubject = () => {
+    const text = newSubjectText.trim();
+    if (!text || !studyPlan || !onUpdatePlan) return;
+
+    const newSubject = {
+      nome: text,
+      topicos: ['Introdução e legislação geral']
+    };
+
+    const updatedPlan = {
+      ...studyPlan,
+      materias: [...(studyPlan.materias || []), newSubject]
+    };
+    onUpdatePlan(updatedPlan);
+    setNewSubjectText('');
+    setShowAddSubject(false);
   };
 
   // Cálculo de estatísticas de progresso
@@ -164,7 +226,27 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
                     return (
                       <div key={tIdx} className="topic-item" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px 16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                          <span className="topic-name" style={{ fontWeight: '500', fontSize: '14px' }}>{topic}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="topic-name" style={{ fontWeight: '500', fontSize: '14px' }}>{topic}</span>
+                            {onUpdatePlan && (
+                              <button 
+                                onClick={() => handleRemoveTopic(sIdx, tIdx)}
+                                title="Remover este tópico"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'rgba(255,255,255,0.2)',
+                                  cursor: 'pointer',
+                                  fontSize: '11px',
+                                  padding: '2px 4px'
+                                }}
+                                onMouseEnter={(e) => e.target.style.color = '#ff5555'}
+                                onMouseLeave={(e) => e.target.style.color = 'rgba(255,255,255,0.2)'}
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
                           
                           <button 
                             className="study-notes-btn"
@@ -212,6 +294,38 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
                     );
                   })}
 
+                  {/* ADICIONAR TÓPICO / LEGISLAÇÃO MANUALMENTE NESTA MATÉRIA */}
+                  {onUpdatePlan && (
+                    <div style={{ display: 'flex', gap: '8px', padding: '10px 16px', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                      <input 
+                        type="text" 
+                        placeholder="+ Adicionar tópico ou lei nesta matéria..."
+                        className="text-input"
+                        style={{ fontSize: '12px', padding: '6px 10px', flex: 1 }}
+                        value={newTopicTexts[sIdx] || ''}
+                        onChange={(e) => setNewTopicTexts({ ...newTopicTexts, [sIdx]: e.target.value })}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddTopic(sIdx);
+                        }}
+                      />
+                      <button 
+                        onClick={() => handleAddTopic(sIdx)}
+                        style={{
+                          background: 'rgba(0, 240, 255, 0.12)',
+                          color: 'var(--accent-cyan)',
+                          border: '1px solid rgba(0, 240, 255, 0.25)',
+                          borderRadius: '4px',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Adicionar
+                      </button>
+                    </div>
+                  )}
+
                   {/* BANNER DO SIMULADO GERAL DA DISCIPLINA */}
                   <div style={{
                     margin: '16px',
@@ -258,6 +372,77 @@ export default function SubjectList({ materias, cargo, concursoKey, provider, ap
           );
         })}
       </div>
+
+      {/* ADICIONAR NOVA DISCIPLINA AO PLANO DE ESTUDOS */}
+      {onUpdatePlan && (
+        <div style={{ marginTop: '20px', padding: '16px 0', borderTop: '1px solid var(--border-glass)' }}>
+          {showAddSubject ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input 
+                type="text" 
+                placeholder="Nome da disciplina (ex: Direito Previdenciário)..."
+                className="text-input"
+                style={{ fontSize: '13px', padding: '8px 12px', flex: '1', minWidth: '200px' }}
+                value={newSubjectText}
+                onChange={(e) => setNewSubjectText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddSubject();
+                }}
+              />
+              <button 
+                onClick={handleAddSubject}
+                style={{
+                  background: 'var(--accent-gradient)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Salvar Matéria
+              </button>
+              <button 
+                onClick={() => setShowAddSubject(false)}
+                style={{
+                  background: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: '6px',
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setShowAddSubject(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px dashed rgba(0, 240, 255, 0.3)',
+                color: 'var(--accent-cyan)',
+                borderRadius: '6px',
+                padding: '10px 16px',
+                width: '100%',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              ➕ Adicionar Outra Matéria ao Edital
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import SubjectList from './SubjectList';
 import ExamSimulator from './ExamSimulator';
 import PerformanceTracker from './PerformanceTracker';
 
-export default function Dashboard({ studyPlan, apiKey, provider, onDatesUpdated, concursoKey }) {
+export default function Dashboard({ studyPlan, apiKey, provider, onDatesUpdated, onUpdatePlan, concursoKey }) {
   const [activeTab, setActiveTab] = useState('cronograma'); // 'cronograma' | 'materias' | 'simulado' | 'performance'
 
   const getTodayPt = () => {
@@ -106,6 +106,8 @@ export default function Dashboard({ studyPlan, apiKey, provider, onDatesUpdated,
             provider={provider}
             apiKey={apiKey}
             banca={studyPlan.banca || (studyPlan.cargoDetails && studyPlan.cargoDetails.banca) || 'FGV'}
+            studyPlan={studyPlan}
+            onUpdatePlan={onUpdatePlan}
           />
         )}
 

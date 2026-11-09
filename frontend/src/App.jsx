@@ -403,6 +403,7 @@ function App() {
             apiKey={apiKey}
             provider={provider}
             onDatesUpdated={handleDatesUpdated}
+            onUpdatePlan={updateStudyPlan}
             concursoKey={getUniqueConcursoKey()}
           />
         ) : view === 'radar' ? (
