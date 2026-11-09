@@ -1,7 +1,18 @@
+// Polyfills para compatibilidade de PDF e canvas em ambiente Vercel Serverless / AWS Lambda
+if (typeof global.DOMMatrix === 'undefined') {
+  global.DOMMatrix = class DOMMatrix { constructor() { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.e = 0; this.f = 0; } };
+}
+if (typeof global.ImageData === 'undefined') {
+  global.ImageData = class ImageData { constructor(w, h) { this.width = w; this.height = h; this.data = new Uint8ClampedArray(w * h * 4); } };
+}
+if (typeof global.Path2D === 'undefined') {
+  global.Path2D = class Path2D {};
+}
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
+let pdfParse = null;
 let Tesseract = null;
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { localSubjectsDb } = require('./localDb.cjs');
@@ -602,7 +613,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         return res.status(400).json({ error: 'The uploaded file is not a valid PDF.' });
       }
       if (req.file.mimetype === 'application/pdf') {
-        // Uso correto da nova biblioteca pdf-parse v2.4.5
+        if (!pdfParse) {
+          pdfParse = require('pdf-parse');
+        }
         const parser = new pdfParse.PDFParse({ data: req.file.buffer });
         const result = await parser.getText();
         editalText = result.text;
