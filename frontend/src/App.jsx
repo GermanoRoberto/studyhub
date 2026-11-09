@@ -288,24 +288,44 @@ function App() {
   };
 
   const handleInitPlanFromRadar = (item) => {
+    const isTI = item.area === 'TI';
+    const materias = isTI ? [
+      { nome: 'Língua Portuguesa', topicos: ['Interpretação de textos', 'Sintaxe', 'Crase', 'Pontuação'] },
+      { nome: 'Raciocínio Lógico e Matemática', topicos: ['Lógica proposicional', 'Análise combinatória', 'Probabilidade'] },
+      { nome: 'Engenharia de Software e Banco de Dados', topicos: ['SQL e Modelagem Relacional', 'Arquitetura de Microsserviços', 'Git e CI/CD', 'APIs REST'] },
+      { nome: 'Segurança da Informação e Redes', topicos: ['Protocolos TCP/IP', 'Criptografia e Certificados', 'LGPD', 'Prevenção de Ataques'] }
+    ] : [
+      { nome: 'Língua Portuguesa', topicos: ['Compreensão e interpretação de textos', 'Ortografia e acentuação', 'Crase', 'Concordância verbal e nominal', 'Pontuação'] },
+      { nome: 'Raciocínio Lógico e Matemática', topicos: ['Estruturas lógicas', 'Lógica de argumentação', 'Porcentagem e frações', 'Probabilidade e análise combinatória'] },
+      { nome: 'Direito Administrativo', topicos: ['Princípios da Administração Pública', 'Atos administrativos', 'Poderes administrativos', 'Licitações e contratos'] },
+      { nome: 'Direito Constitucional', topicos: ['Direitos e deveres individuais (Art. 5º)', 'Direitos sociais', 'Organização dos poderes', 'Administração Pública (Arts. 37 a 41)'] }
+    ];
+
+    const cronograma = [
+      { dia: 'Segunda-feira', materias: [materias[0].nome] },
+      { dia: 'Terça-feira', materias: [materias[1].nome] },
+      { dia: 'Quarta-feira', materias: [materias[2].nome] },
+      { dia: 'Quinta-feira', materias: [materias[3].nome] },
+      { dia: 'Sexta-feira', materias: [materias[0].nome, 'Revisão Geral'] },
+      { dia: 'Sábado', materias: ['Simulados & Exercícios'] },
+      { dia: 'Domingo', materias: ['Descanso'] }
+    ];
+
     const newPlan = {
       concurso: item.concurso || item.orgao || 'Concurso Selecionado',
       cargo: item.cargo || 'Cargo',
       banca: item.banca || 'A definir',
+      datas: item.datas || { inscricao_inicio: '', inscricao_fim: '', prova: '' },
       cargoDetails: {
         nome: item.cargo || 'Cargo',
         vagas: item.vagas || 'A consultar',
         salario: item.salario || 'A consultar',
-        requisitos: 'Conforme edital',
-        locais_prova: 'Consultar edital',
-        taf: (item.area === 'Policial' || item.area === 'Militar') ? 'Exigido' : 'Não exigido'
+        requisitos: item.requisitos || 'Conforme edital',
+        locais_prova: item.uf ? `Locais no estado de ${item.uf}` : 'Nacional',
+        taf: item.taf_descricao || (item.taf_tipo === 'nenhum' ? 'Não exigido' : 'Exigido')
       },
-      materias: [
-        { nome: 'Língua Portuguesa', topicos: ['Compreensão e interpretação de textos', 'Ortografia e acentuação', 'Crase', 'Concordância verbal e nominal', 'Pontuação'] },
-        { nome: 'Raciocínio Lógico e Matemática', topicos: ['Estruturas lógicas', 'Lógica de argumentação', 'Porcentagem e frações', 'Probabilidade e análise combinatória'] },
-        { nome: 'Direito Administrativo', topicos: ['Princípios da Administração Pública', 'Atos administrativos', 'Poderes administrativos', 'Licitações e contratos'] },
-        { nome: 'Direito Constitucional', topicos: ['Direitos e deveres individuais (Art. 5º)', 'Direitos sociais', 'Organização dos poderes', 'Administração Pública (Arts. 37 a 41)'] }
-      ]
+      materias,
+      cronograma
     };
     updateStudyPlan(newPlan);
     setView('dashboard');
