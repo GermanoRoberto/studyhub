@@ -13,6 +13,7 @@ import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { concursosCatalog } from './_lib/concursosData.js';
 import { saveUserData, getUserData } from './_lib/supabaseDb.js';
+import { fetchLiveConcursosFromRss } from './_lib/rssScraper.js';
 
 const require = createRequire(import.meta.url);
 
@@ -152,25 +153,52 @@ export default async function handler(req, res) {
     return res.status(401).json({ valid: false, error: 'Sessão inválida ou expirada' });
   }
 
-  // Rota de Radar de Editais 2026/2027
+  // Rota de Radar de Editais 2026/2027 (Catálogo Oficial + Feed RSS em Tempo Real)
   if (pathname === '/api/concursos/radar' || pathname === '/concursos/radar') {
     const area = url.searchParams.get('area');
     const escolaridade = url.searchParams.get('escolaridade');
     const status = url.searchParams.get('status');
 
-    let filtered = concursosCatalog;
+    let liveItems = [];
+    try {
+      liveItems = await fetchLiveConcursosFromRss();
+    } catch (e) {
+      console.warn('Erro ao obter live items RSS:', e.message);
+    }
+
+    // Combina RSS com catálogo base oficial, evitando duplicidades
+    const seen = new Set();
+    const combined = [];
+    
+    // Prioriza os itens do catálogo enriquecidos
+    for (const c of concursosCatalog) {
+      const key = (c.orgao || '').toLowerCase();
+      seen.add(key);
+      combined.push(c);
+    }
+    // Adiciona novidades do feed RSS
+    for (const item of liveItems) {
+      const key = (item.orgao || '').toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        combined.unshift(item); // Coloca notícias frescas no topo!
+      }
+    }
+
+    let filtered = combined;
     if (area && area !== 'todas') {
-      filtered = filtered.filter(c => c.area.toLowerCase() === area.toLowerCase());
+      filtered = filtered.filter(c => (c.area || '').toLowerCase() === area.toLowerCase());
     }
     if (escolaridade && escolaridade !== 'todos') {
-      filtered = filtered.filter(c => c.escolaridade.toLowerCase().includes(escolaridade.toLowerCase()));
+      filtered = filtered.filter(c => (c.escolaridade || '').toLowerCase().includes(escolaridade.toLowerCase()));
     }
     if (status && status !== 'todos') {
-      filtered = filtered.filter(c => c.status.toLowerCase().includes(status.toLowerCase()));
+      filtered = filtered.filter(c => (c.status || '').toLowerCase().includes(status.toLowerCase()));
     }
 
     return res.status(200).json({
       total: filtered.length,
+      liveCount: liveItems.length,
       timestamp: new Date().toISOString(),
       concursos: filtered
     });
