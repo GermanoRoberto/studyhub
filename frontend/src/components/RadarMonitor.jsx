@@ -18,7 +18,9 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
       return { idade: 28, escolaridade: 'medio', sem_barra: true, sem_taf: false };
     }
   });
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(() => {
+    return !localStorage.getItem('studyhub_user_profile');
+  });
   const [onlyCompatible, setOnlyCompatible] = useState(true);
   const [hideExpired, setHideExpired] = useState(true);
 
@@ -28,13 +30,18 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
   const [selectedStatus, setSelectedStatus] = useState('Todos');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Estados de interesse pessoal
+  // Estados de interesse pessoal (sem concursos com barra fixa por padrão)
   const [interestedIds, setInterestedIds] = useState(() => {
     try {
       const saved = localStorage.getItem('studyhub_interested_concursos');
-      return saved ? JSON.parse(saved) : ['exercito_espcex_2026', 'bb_ti_2026', 'receita_federal_ti_2026', 'pmdf_oficial_2026'];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Remove concursos com barra fixa caso tenham sido favoritados no passado
+        return parsed.filter(id => id !== 'exercito_espcex_2026' && id !== 'pmdf_oficial_2026' && id !== 'pmsp_soldado_2026');
+      }
+      return ['bb_ti_2026', 'receita_federal_ti_2026', 'tj_sp_escrevente_2026', 'bacen_ti_2026'];
     } catch (e) {
-      return ['exercito_espcex_2026', 'bb_ti_2026'];
+      return ['bb_ti_2026', 'receita_federal_ti_2026'];
     }
   });
 
