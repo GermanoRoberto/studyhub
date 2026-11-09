@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-import { concursosCatalog } from './concursosData.js';
+import { concursosCatalog } from './_lib/concursosData.js';
 
 const require = createRequire(import.meta.url);
 
@@ -74,7 +74,7 @@ function setCorsHeaders(req, res) {
 let cachedExpressApp = null;
 function getExpressApp() {
   if (!cachedExpressApp) {
-    cachedExpressApp = require('./server.cjs');
+    cachedExpressApp = require('./_lib/server.cjs');
   }
   return cachedExpressApp;
 }
