@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { saveCloudUserData } from '../services/api';
 
 export default function Header({ provider, setProvider, apiKey, setApiKey, activeConcurso, onReset, onLogoClick, currentView, setView, currentUser, onLogout }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -14,6 +15,10 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
     } else {
       localStorage.removeItem('concurso_api_key');
     }
+    saveCloudUserData('study_state', {
+      provider: tempProvider,
+      apiKey: tempKey
+    });
     setIsModalOpen(false);
   };
 
@@ -49,6 +54,11 @@ export default function Header({ provider, setProvider, apiKey, setApiKey, activ
       </div>
 
       <div className="header-actions">
+        <div className="status-indicator" title="Sincronização em nuvem via Supabase ativa">
+          <span className="status-dot online" style={{ background: '#3ecf8e', boxShadow: '0 0 8px #3ecf8e' }}></span>
+          <span style={{ color: '#3ecf8e', fontWeight: '600' }}>☁️ Supabase</span>
+        </div>
+
         <div className="status-indicator">
           <span className={`status-dot ${getStatusClass()}`}></span>
           <span>{getStatusText()}</span>

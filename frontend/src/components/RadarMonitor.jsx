@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getRadarConcursos, checkConcursoUpdate } from '../services/api';
+import { getRadarConcursos, checkConcursoUpdate, fetchCloudUserData, saveCloudUserData } from '../services/api';
 
 export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWithMock }) {
   const [concursos, setConcursos] = useState([]);
@@ -61,42 +61,70 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
       }
     }
     fetchCatalog();
+
+    // Sincroniza preferências do Radar com o Supabase
+    fetchCloudUserData().then(cloud => {
+      if (cloud && cloud.radar_preferences && isMounted) {
+        const { interested, ignored } = cloud.radar_preferences;
+        if (Array.isArray(interested) && interested.length > 0) {
+          setInterestedIds(interested);
+          localStorage.setItem('studyhub_interested_concursos', JSON.stringify(interested));
+        }
+        if (Array.isArray(ignored)) {
+          setIgnoredIds(ignored);
+          localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(ignored));
+        }
+      }
+    }).catch(e => console.warn('Radar cloud sync notice:', e));
+
     return () => { isMounted = false; };
   }, []);
 
-  // Salva interesses no storage
+  // Salva interesses no storage e na nuvem Supabase
   const toggleInterest = (id) => {
+    let nextInterested = [];
+    let nextIgnored = ignoredIds;
+
     setInterestedIds(prev => {
       const exists = prev.includes(id);
-      const updated = exists ? prev.filter(x => x !== id) : [...prev, id];
-      localStorage.setItem('studyhub_interested_concursos', JSON.stringify(updated));
-      return updated;
+      nextInterested = exists ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('studyhub_interested_concursos', JSON.stringify(nextInterested));
+      return nextInterested;
     });
+
     // Se estava ignorado, remove do ignorado
     if (ignoredIds.includes(id)) {
       setIgnoredIds(prev => {
-        const updated = prev.filter(x => x !== id);
-        localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(updated));
-        return updated;
+        nextIgnored = prev.filter(x => x !== id);
+        localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(nextIgnored));
+        return nextIgnored;
       });
     }
+
+    saveCloudUserData('radar_preferences', { interested: nextInterested, ignored: nextIgnored });
   };
 
   const toggleIgnore = (id) => {
+    let nextIgnored = [];
+    let nextInterested = interestedIds;
+
     setIgnoredIds(prev => {
       const exists = prev.includes(id);
-      const updated = exists ? prev.filter(x => x !== id) : [...prev, id];
-      localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(updated));
-      return updated;
+      nextIgnored = exists ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('studyhub_ignored_concursos', JSON.stringify(nextIgnored));
+      return nextIgnored;
     });
+
     // Se estava nos favoritos, remove
     if (interestedIds.includes(id)) {
       setInterestedIds(prev => {
-        const updated = prev.filter(x => x !== id);
-        localStorage.setItem('studyhub_interested_concursos', JSON.stringify(updated));
-        return updated;
+        nextInterested = prev.filter(x => x !== id);
+        localStorage.setItem('studyhub_interested_concursos', JSON.stringify(nextInterested));
+        return nextInterested;
       });
     }
+
+    saveCloudUserData('radar_preferences', { interested: nextInterested, ignored: nextIgnored });
   };
 
   // Checagem de atualizações com IA

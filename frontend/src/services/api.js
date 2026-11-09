@@ -34,6 +34,47 @@ export const verifyAuthToken = async (token) => {
 };
 
 /**
+ * Obtém todos os dados do usuário salvos na nuvem (Supabase)
+ */
+export const fetchCloudUserData = async () => {
+  const token = localStorage.getItem('studyhub_auth_token');
+  if (!token) return null;
+  try {
+    const res = await fetch(`${API_BASE}/sync`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || {};
+  } catch (e) {
+    console.warn('Falha ao buscar dados na nuvem:', e);
+    return null;
+  }
+};
+
+/**
+ * Salva categoria de dados do usuário na nuvem (Supabase)
+ */
+export const saveCloudUserData = async (category, data) => {
+  const token = localStorage.getItem('studyhub_auth_token');
+  if (!token) return false;
+  try {
+    const res = await fetch(`${API_BASE}/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ category, data })
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('Falha ao sincronizar dados na nuvem:', e);
+    return false;
+  }
+};
+
+/**
  * Helper para obter os headers com o provider, chave API e token de autenticação
  */
 const getHeaders = (provider, apiKey) => {

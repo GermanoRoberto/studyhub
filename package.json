@@ -10,12 +10,14 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@supabase/supabase-js": "^2.119.0",
     "concurrently": "^8.2.2",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
+    "pg": "^8.23.1",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {

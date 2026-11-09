@@ -64,7 +64,8 @@ export default function DateTracker({ dates, concursoName, banca, apiKey, onDate
     return;
   };
 
-  const isProvaValid = dates && dates.prova && !dates.prova.includes('Não') && !dates.prova.includes('encontrada');
+  const safeDates = dates || {};
+  const isProvaValid = safeDates.prova && !safeDates.prova.includes('Não') && !safeDates.prova.includes('encontrada');
   const finalCargoName = cargoDetails ? cargoDetails.nome : (cargoName || 'Cargo Geral');
 
   return (
@@ -118,13 +119,13 @@ export default function DateTracker({ dates, concursoName, banca, apiKey, onDate
           <div className="date-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="date-label" style={{ color: 'var(--text-muted)' }}>📝 Inscrições:</span>
             <span className="date-value" style={{ fontWeight: '600', color: 'var(--text-main)' }}>
-              {formatDate(dates.inscricao_inicio)} a {formatDate(dates.inscricao_fim)}
+              {formatDate(safeDates.inscricao_inicio)} a {formatDate(safeDates.inscricao_fim)}
             </span>
           </div>
           <div className="date-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span className="date-label" style={{ color: 'var(--text-muted)' }}>📅 Prova Objetiva:</span>
             <span className="date-value" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>
-              {formatDate(dates.prova)}
+              {formatDate(safeDates.prova)}
             </span>
           </div>
         </div>
@@ -161,9 +162,9 @@ export default function DateTracker({ dates, concursoName, banca, apiKey, onDate
       )}
 
       {/* BOTÕES DE AÇÃO */}
-      {dates.link_inscricao && (
+      {safeDates.link_inscricao && (
         <a 
-          href={dates.link_inscricao} 
+          href={safeDates.link_inscricao} 
           target="_blank" 
           rel="noopener noreferrer"
           className="sync-btn"
@@ -187,7 +188,7 @@ export default function DateTracker({ dates, concursoName, banca, apiKey, onDate
         className="sync-btn" 
         onClick={handleSyncDates} 
         disabled={syncing}
-        style={{ marginTop: dates.link_inscricao ? '10px' : '16px' }}
+        style={{ marginTop: safeDates.link_inscricao ? '10px' : '16px' }}
       >
         {syncing ? 'Pesquisando na web...' : '🔍 Buscar datas na web'}
       </button>

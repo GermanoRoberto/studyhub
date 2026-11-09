@@ -4,7 +4,7 @@ import UploadPanel from './components/UploadPanel';
 import Dashboard from './components/Dashboard';
 import RadarMonitor from './components/RadarMonitor';
 import Login from './components/Login';
-import { generateDashboard, verifyAuthToken } from './services/api';
+import { generateDashboard, verifyAuthToken, fetchCloudUserData, saveCloudUserData } from './services/api';
 import './App.css';
 
 function App() {
@@ -97,9 +97,39 @@ function App() {
         console.error("Erro ao carregar histórico de editais", e);
       }
     }
+
+    // Sincronização em Nuvem (Supabase): restaura estado se acessado de outro dispositivo
+    if (token) {
+      fetchCloudUserData().then(cloudData => {
+        if (cloudData && cloudData.study_state) {
+          const { parsed_edital, study_plan, editais_history, provider: p, apiKey: k } = cloudData.study_state;
+          if (parsed_edital && !savedEdital) {
+            setParsedEdital(parsed_edital);
+            localStorage.setItem('concurso_parsed_edital', JSON.stringify(parsed_edital));
+          }
+          if (study_plan && !savedPlan) {
+            setStudyPlan(study_plan);
+            localStorage.setItem('concurso_study_plan', JSON.stringify(study_plan));
+            setView('dashboard');
+          }
+          if (editais_history && Array.isArray(editais_history) && !savedHistory) {
+            setUploadedEditais(editais_history);
+            localStorage.setItem('concurso_editais_history', JSON.stringify(editais_history));
+          }
+          if (p && !savedProvider) {
+            setProvider(p);
+            localStorage.setItem('concurso_provider', p);
+          }
+          if (k && !savedApiKey) {
+            setApiKey(k);
+            localStorage.setItem('concurso_api_key', k);
+          }
+        }
+      }).catch(err => console.warn('Supabase sync notice:', err));
+    }
   }, []);
 
-  // Helpers para atualizar e persistir o estado
+  // Helpers para atualizar e persistir o estado (Local + Nuvem Supabase)
   const updateParsedEdital = (data) => {
     setParsedEdital(data);
     if (data) {
@@ -113,10 +143,25 @@ function App() {
         });
         const updated = [data, ...filtered];
         localStorage.setItem('concurso_editais_history', JSON.stringify(updated));
+        // Salva na nuvem Supabase em segundo plano
+        saveCloudUserData('study_state', {
+          parsed_edital: data,
+          study_plan: studyPlan,
+          editais_history: updated,
+          provider,
+          apiKey
+        });
         return updated;
       });
     } else {
       localStorage.removeItem('concurso_parsed_edital');
+      saveCloudUserData('study_state', {
+        parsed_edital: null,
+        study_plan: null,
+        editais_history: uploadedEditais,
+        provider,
+        apiKey
+      });
     }
   };
 
@@ -125,9 +170,24 @@ function App() {
     if (plan) {
       localStorage.setItem('concurso_study_plan', JSON.stringify(plan));
       setView('dashboard'); // Vai para o dashboard quando o plano é gerado
+      // Sincroniza plano na nuvem Supabase
+      saveCloudUserData('study_state', {
+        parsed_edital: parsedEdital,
+        study_plan: plan,
+        editais_history: uploadedEditais,
+        provider,
+        apiKey
+      });
     } else {
       localStorage.removeItem('concurso_study_plan');
       setView('upload');
+      saveCloudUserData('study_state', {
+        parsed_edital: parsedEdital,
+        study_plan: null,
+        editais_history: uploadedEditais,
+        provider,
+        apiKey
+      });
     }
   };
 
@@ -181,9 +241,9 @@ function App() {
       // Mescla datas e dados originais do edital
       const finalResult = {
         ...result,
-        concurso: parsedEdital.concurso,
-        banca: parsedEdital.banca,
-        datas: parsedEdital.datas,
+        concurso: parsedEdital.concurso || 'Concurso Público',
+        banca: parsedEdital.banca || 'A Definir',
+        datas: parsedEdital.datas || { inscricao_inicio: '', inscricao_fim: '', prova: '' },
         cargoDetails: {
           nome: cargoName,
           vagas: cargoDetail.vagas || 'Ver no Edital',

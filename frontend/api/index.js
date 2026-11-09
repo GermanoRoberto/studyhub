@@ -12,6 +12,7 @@ if (typeof global.Path2D === 'undefined') {
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { concursosCatalog } from './_lib/concursosData.js';
+import { saveUserData, getUserData } from './_lib/supabaseDb.js';
 
 const require = createRequire(import.meta.url);
 
@@ -173,6 +174,40 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString(),
       concursos: filtered
     });
+  }
+
+  // Rota de Sincronização em Nuvem (Supabase)
+  if (pathname === '/api/sync' || pathname === '/sync') {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token || !verifySessionToken(token)) {
+      return res.status(401).json({ error: 'Acesso não autorizado para sincronização' });
+    }
+
+    if (req.method === 'GET') {
+      try {
+        const result = await getUserData(AUTH_USER);
+        return res.status(200).json(result);
+      } catch (err) {
+        return res.status(500).json({ error: 'Erro ao buscar dados na nuvem: ' + err.message });
+      }
+    }
+
+    if (req.method === 'POST') {
+      try {
+        const body = await parseBody(req);
+        const { category, data } = body;
+        if (!category || data === undefined) {
+          return res.status(400).json({ error: 'Dados incompletos para sincronização' });
+        }
+        const result = await saveUserData(AUTH_USER, category, data);
+        return res.status(200).json(result);
+      } catch (err) {
+        return res.status(500).json({ error: 'Erro ao salvar dados na nuvem: ' + err.message });
+      }
+    }
+
+    return res.status(405).json({ error: 'Método não permitido' });
   }
 
   // Para outras rotas complexas (Upload, Gemini AI, OCR), delegar com segurança ao Express

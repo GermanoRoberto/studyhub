@@ -19,9 +19,9 @@ export default function Dashboard({ studyPlan, apiKey, provider, onDatesUpdated,
       {/* Sidebar - Date Tracker */}
       <div className="sidebar-panel">
         <DateTracker 
-          dates={studyPlan.datas} 
-          concursoName={studyPlan.concurso} 
-          banca={studyPlan.banca} 
+          dates={studyPlan?.datas || {}} 
+          concursoName={studyPlan?.concurso || ''} 
+          banca={studyPlan?.banca || ''} 
           apiKey={apiKey}
           onDatesUpdated={onDatesUpdated}
           cargoDetails={studyPlan.cargoDetails}
