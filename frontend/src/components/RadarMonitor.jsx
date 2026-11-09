@@ -437,52 +437,121 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
         </div>
       </div>
 
-      {/* FILTROS E CONTROLES */}
-      <div className="radar-controls glass-card">
-        {/* TOGGLES INTELIGENTES DE ELEGIBILIDADE E VISUALIZAÇÃO */}
-        <div style={{ padding: '12px 16px', background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-glass)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '14px', fontSize: '13px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="checkbox"
-                checked={onlyCompatible}
-                onChange={(e) => setOnlyCompatible(e.target.checked)}
-                style={{ width: '16px', height: '16px' }}
-              />
-              <span style={{ fontWeight: '600', color: onlyCompatible ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
-                🎯 Apenas compatíveis com meu perfil ({filteredConcursos.length} disponíveis)
-              </span>
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-              <input 
-                type="checkbox"
-                checked={hideExpired}
-                onChange={(e) => setHideExpired(e.target.checked)}
-                style={{ width: '16px', height: '16px' }}
-              />
-              <span style={{ fontWeight: '600', color: hideExpired ? 'var(--accent-green)' : 'var(--text-muted)' }}>
-                ⏰ Ocultar provas já realizadas / encerradas
-              </span>
-            </label>
+      {/* FILTROS E CONTROLES UNIFICADOS E PERFEITAMENTE ALINHADOS */}
+      <div className="radar-controls glass-card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
+        
+        {/* LINHA 1: BUSCA + DROPDOWNS + TOGGLE TABELA/CARDS */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: '100%' }}>
+          
+          {/* CAMPO DE BUSCA */}
+          <div style={{ flex: '1', minWidth: '260px', position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: '12px', fontSize: '14px', opacity: 0.6 }}>🔍</span>
+            <input 
+              type="text" 
+              placeholder="Pesquisar concurso, órgão, cargo, banca ou estado..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                height: '40px',
+                padding: '0 36px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid var(--border-glass)',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '13px',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border 0.2s ease'
+              }}
+              onFocus={(e) => e.target.style.borderColor = 'var(--accent-cyan)'}
+              onBlur={(e) => e.target.style.borderColor = 'var(--border-glass)'}
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                ×
+              </button>
+            )}
           </div>
 
-          {/* TOGGLE MODO TABELA / MODO CARDS */}
-          <div style={{ display: 'flex', gap: '4px', background: 'rgba(255, 255, 255, 0.04)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+          {/* DROPDOWN ESCOLARIDADE */}
+          <select 
+            value={selectedEscolaridade} 
+            onChange={(e) => setSelectedEscolaridade(e.target.value)}
+            style={{
+              height: '40px',
+              padding: '0 12px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '13px',
+              cursor: 'pointer',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+          >
+            <option value="Todas">Toda Escolaridade</option>
+            <option value="Médio">Nível Médio</option>
+            <option value="Superior">Nível Superior</option>
+            <option value="Fundamental">Nível Fundamental</option>
+          </select>
+
+          {/* DROPDOWN STATUS */}
+          <select 
+            value={selectedStatus} 
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            style={{
+              height: '40px',
+              padding: '0 12px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid var(--border-glass)',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '13px',
+              cursor: 'pointer',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+          >
+            <option value="Todos">Todos os Status</option>
+            <option value="Inscrições Abertas">📝 Inscrições Abertas</option>
+            <option value="Edital Publicado">🔥 Edital Publicado</option>
+            <option value="Banca Definida">⚡ Banca Definida</option>
+            <option value="Comissão Formada">📝 Comissão Formada</option>
+            <option value="Autorizado">✅ Autorizado</option>
+            <option value="Previsto">🔮 Previsto 2026/2027</option>
+          </select>
+
+          {/* TOGGLE MODO TABELA / CARDS */}
+          <div style={{ display: 'flex', gap: '3px', background: 'rgba(255, 255, 255, 0.04)', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-glass)', height: '40px', boxSizing: 'border-box', alignItems: 'center' }}>
             <button
               onClick={() => setViewMode('table')}
               style={{
+                height: '32px',
                 background: viewMode === 'table' ? 'var(--accent-gradient)' : 'transparent',
                 color: viewMode === 'table' ? '#fff' : 'var(--text-muted)',
                 border: 'none',
-                padding: '5px 12px',
+                padding: '0 12px',
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                transition: 'all 0.2s ease'
               }}
             >
               📋 Tabela
@@ -490,17 +559,19 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
             <button
               onClick={() => setViewMode('cards')}
               style={{
+                height: '32px',
                 background: viewMode === 'cards' ? 'var(--accent-gradient)' : 'transparent',
                 color: viewMode === 'cards' ? '#fff' : 'var(--text-muted)',
                 border: 'none',
-                padding: '5px 12px',
+                padding: '0 12px',
                 borderRadius: '6px',
                 fontSize: '12px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                transition: 'all 0.2s ease'
               }}
             >
               🗂️ Cards
@@ -508,75 +579,97 @@ export default function RadarMonitor({ provider, apiKey, setView, onInitPlanWith
           </div>
         </div>
 
-        {/* FILTROS DE CARREIRA (CHIPS FILTRADOS - APENAS COM VAGAS) */}
-        <div className="filters-container">
-          <div className="filter-group-areas">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span className="filter-title">Carreiras / Áreas com Oportunidades:</span>
-              {onlyCompatible && (
-                <span style={{ fontSize: '11px', color: 'var(--accent-cyan)' }}>
-                  ✓ Áreas sem vagas para seu perfil foram ocultadas
-                </span>
-              )}
-            </div>
-
-            <div className="area-chips-list">
-              {availableAreasWithCount.map(a => (
-                <button
-                  key={a.value}
-                  className={`area-chip ${selectedArea === a.value ? 'active' : ''}`}
-                  onClick={() => setSelectedArea(a.value)}
-                >
-                  <span className="chip-icon">{a.icon}</span>
-                  <span className="chip-text">{a.label} ({a.count})</span>
-                </button>
-              ))}
-            </div>
+        {/* LINHA 2: CHIPS DE ÁREA (ESQUERDA) + TOGGLES DE ELEGIBILIDADE (DIREITA) */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          gap: '12px', 
+          flexWrap: 'wrap', 
+          paddingTop: '12px', 
+          borderTop: '1px solid rgba(255, 255, 255, 0.06)' 
+        }}>
+          
+          {/* CHIPS DE CARREIRAS COM VAGAS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: '1', minWidth: '300px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', marginRight: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Carreiras:
+            </span>
+            {availableAreasWithCount.map(a => (
+              <button
+                key={a.value}
+                onClick={() => setSelectedArea(a.value)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: selectedArea === a.value ? 'var(--accent-gradient)' : 'rgba(255, 255, 255, 0.03)',
+                  border: selectedArea === a.value ? '1px solid transparent' : '1px solid var(--border-glass)',
+                  color: selectedArea === a.value ? '#fff' : 'var(--text-main)',
+                  padding: '6px 12px',
+                  borderRadius: '16px',
+                  fontSize: '12px',
+                  fontWeight: selectedArea === a.value ? 'bold' : '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: selectedArea === a.value ? '0 2px 10px rgba(142, 45, 226, 0.3)' : 'none'
+                }}
+              >
+                <span>{a.icon}</span>
+                <span>{a.label} ({a.count})</span>
+              </button>
+            ))}
           </div>
 
-          <div className="secondary-filters-row">
-            <div className="search-bar-box">
-              <span className="search-icon">🔍</span>
-              <input 
-                type="text" 
-                placeholder="Pesquisar concurso, órgão, cargo, banca ou estado..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="radar-search-input"
-              />
-              {searchTerm && (
-                <button className="clear-search-btn" onClick={() => setSearchTerm('')}>×</button>
-              )}
-            </div>
+          {/* TOGGLES EM FORMATO DE BOTÕES/PILLS ALINHADOS */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setOnlyCompatible(!onlyCompatible)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '16px',
+                border: onlyCompatible ? '1px solid rgba(0, 240, 255, 0.4)' : '1px solid var(--border-glass)',
+                background: onlyCompatible ? 'rgba(0, 240, 255, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                color: onlyCompatible ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              title="Clique para ativar/desativar o filtro de compatibilidade com seu ombro e idade"
+            >
+              <span>{onlyCompatible ? '✓' : '○'}</span>
+              <span>🎯 Apenas compatíveis ({filteredConcursos.length})</span>
+            </button>
 
-            <div className="dropdowns-group">
-              <select 
-                value={selectedEscolaridade} 
-                onChange={(e) => setSelectedEscolaridade(e.target.value)}
-                className="radar-select"
-              >
-                <option value="Todas">Toda Escolaridade</option>
-                <option value="Médio">Nível Médio</option>
-                <option value="Superior">Nível Superior</option>
-                <option value="Fundamental">Nível Fundamental</option>
-              </select>
-
-              <select 
-                value={selectedStatus} 
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="radar-select"
-              >
-                <option value="Todos">Todos os Status</option>
-                <option value="Inscrições Abertas">📝 Inscrições Abertas</option>
-                <option value="Edital Publicado">🔥 Edital Publicado</option>
-                <option value="Banca Definida">⚡ Banca Definida</option>
-                <option value="Comissão Formada">📝 Comissão Formada</option>
-                <option value="Autorizado">✅ Autorizado</option>
-                <option value="Previsto">🔮 Previsto 2026/2027</option>
-              </select>
-            </div>
+            <button
+              onClick={() => setHideExpired(!hideExpired)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '16px',
+                border: hideExpired ? '1px solid rgba(46, 204, 113, 0.4)' : '1px solid var(--border-glass)',
+                background: hideExpired ? 'rgba(46, 204, 113, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+                color: hideExpired ? '#2ecc71' : 'var(--text-muted)',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              title="Clique para ocultar ou exibir concursos com provas já realizadas"
+            >
+              <span>{hideExpired ? '✓' : '○'}</span>
+              <span>⏰ Ocultar provas encerradas</span>
+            </button>
           </div>
+
         </div>
+
       </div>
 
       {/* FEEDBACK DE CARREGAMENTO */}
